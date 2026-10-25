@@ -21,7 +21,7 @@ window.CONFIG = {
   refreshBufferMs: 5 * 60 * 1000,
   tokenKey: 'legapp_token_v1',
 
-  censusApiKey: 'da15544938f3846147bc547b15f88413e7a4cf5d',                    // <-- paste your Census API key
+  censusApiKey: 'da15544938f3846147bc547b15f88413e7a4cf5d',                  // <-- paste your Census API key
   acsYears: ['2024', '2023', '2022'],  // tried newest → oldest
 
   // ── District layers (all three chambers) ─────────────────────────
@@ -51,12 +51,36 @@ window.CONFIG = {
     party: 'Party', title: 'Title', firstYear: 'First_Year',
     leadership: 'Leadership_Position', committees: 'Committees',
     photo: 'PhotoURL', website: 'Website', bioguide: 'BioguideID',
+    filter: 'District_Filter',   // value the old dashboard used to join disasters to districts
+  },
+  // Field on the grants / disaster layers that holds the district (taken from the old dashboard's
+  // filter wiring). Matching tries District_Filter, LongName ("District 1"), "1", "01" so the exact
+  // value format doesn't matter. Not set here? It falls back to any field containing cong / sen / house.
+  joinFields: {
+    grants:    { congress: 'Congress', senate: 'Senate', house: 'House' },
+    disasters: { congress: 'congress', senate: 'senate', house: 'house' },
   },
 
   // ── Infrastructure layer maintained by the Legislative Advising group ─
   cikr: {
     url: ORG + 'Legislative_CIKR/FeatureServer/0',
     nameField: 'Facility', categoryField: 'Category', notesField: 'Notes',
+    // Map symbols. Exact category names win; otherwise the first keyword rule that
+    // matches the category text is used. Symbol keys are defined in js/symbols.js.
+    symbols: { /* 'Higher Edu': 'education' */ },
+    symbolRules: [
+      [/hospital|health|medical|clinic|nursing/i, 'health'],
+      [/edu|school|college|universit/i, 'education'],
+      [/dam|levee/i, 'dam'],
+      [/chem|hazmat|hazardous|industr|manufactur/i, 'chemical'],
+      [/wastewater|water|sewer/i, 'water'],
+      [/power|energy|electric|nuclear|utilit|gas|fuel|pipeline/i, 'power'],
+      [/fire|police|law|sheriff|ems|emergency|public safety|corrections|prison/i, 'safety'],
+      [/govern|court|capitol|office|admin/i, 'government'],
+      [/transport|airport|aviation|bridge|rail|road|highway|transit|port/i, 'transport'],
+      [/communic|telecom|radio|broadcast|tower|data/i, 'comms'],
+      [/shelter|housing|lodging|hotel/i, 'shelter'],
+    ],
   },
 
   counties: { url: ORG + 'TN_Counties_Census_2020/FeatureServer/0', fips: 'COUNTY_FIPS', name: 'NAME' },
@@ -73,7 +97,14 @@ window.CONFIG = {
   // Optional overrides: name of the field on each grants/disaster layer that
   // holds the district. Leave null to auto-detect (a field matching /cong/i etc.).
   grantDistrictField: null,
-  disasters: { itemId: 'fcf5f76dc92a403db38bcf6591dea232', districtField: null },
+  // Disaster declarations come from the public OpenFEMA API (no login). Counties are matched to
+  // districts by FIPS code. Set source: 'layer' to use the internal layer below instead.
+  disasters: {
+    source: 'fema',
+    femaUrl: 'https://www.fema.gov/api/open/v2/DisasterDeclarationsSummaries',
+    state: 'TN',
+    itemId: 'fcf5f76dc92a403db38bcf6591dea232', districtField: null,   // used when source is 'layer' (or FEMA is unreachable)
+  },
   fiscalYears: [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026],
 
   // Statewide ideal-district populations come from the layer's own totals.

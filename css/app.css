@@ -86,7 +86,6 @@ button { font-family: inherit; cursor: pointer; }
 .map-banner { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 500; background: #fff8e6; border: 1px solid #f0cf85; color: #6b4600; padding: 8px 14px; border-radius: 8px; font-size: 12px; max-width: 80%; box-shadow: var(--shadow); }
 .legend { position: absolute; left: 10px; bottom: 28px; z-index: 450; background: rgba(255,255,255,.95); border-radius: 8px; padding: 8px 10px; font-size: 11px; box-shadow: var(--shadow); max-height: 40%; overflow: auto; }
 .legend div { display: flex; gap: 6px; align-items: center; padding: 1px 0; }
-.legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; border: 1px solid rgba(0,0,0,.25); }
 .dlabel { background: transparent; border: 0; box-shadow: none; color: var(--navy); font-weight: 700; font-size: 13px; text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff; padding: 0; }
 .dlabel::before { display: none; }
 .leaflet-marker-icon .dlabel { display: block; width: 100%; text-align: center; pointer-events: none; white-space: nowrap; }
@@ -193,3 +192,17 @@ table.state button { all: unset; cursor: pointer; color: var(--navy-2); font-wei
   .brand-text span { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .spin { animation: none; } .toast { transition: none; } }
+
+/* infrastructure symbols */
+.sym { background: transparent; border: 0; filter: drop-shadow(0 1px 1.5px rgba(0,0,0,.45)); }
+.sym svg { display: block; }
+.badge { display: inline-block; vertical-align: -5px; margin-right: 6px; line-height: 0; }
+.legend .badge { margin-right: 0; vertical-align: middle; }
+
+/* tile + heading icons */
+.tile.has-ico { display: grid; grid-template-columns: 38px 1fr; gap: 10px; align-items: center; }
+.tile .ico { width: 38px; height: 38px; border-radius: 10px; background: #e3ecf8; color: var(--navy-2); display: grid; place-items: center; }
+.tile.has-ico .v { font-size: 20px; }
+.tile .tx { min-width: 0; }
+h2.sec { display: flex; align-items: center; gap: 7px; }
+h2.sec .ico-svg { color: var(--navy-2); flex: none; }

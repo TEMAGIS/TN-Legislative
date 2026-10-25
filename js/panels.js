@@ -20,7 +20,11 @@ const stale = (seq) => seq !== renderSeq;
 function addInto(a, b) { Object.keys(b).forEach(k => { if (k === 'counties') return; if (typeof b[k] === 'number') a[k] = (a[k] || 0) + b[k]; else if (b[k] && typeof b[k] === 'object') addInto(a[k] || (a[k] = {}), b[k]); }); return a; }
 function statewideSummary(r) { const o = {}; Object.values(r.byDistrict).forEach(s => addInto(o, s)); return o; }
 const RACE_DEF = [['white', 'White', '#0072b2'], ['black', 'Black', '#d55e00'], ['asian', 'Asian', '#009e73'], ['aian', 'Am. Indian / Alaska Native', '#cc79a7'], ['nhpi', 'Pacific Islander', '#e69f00'], ['other', 'Other', '#56b4e9'], ['multi', 'Two or more', '#7a5195']];
-const tile = (v, l, s, wide) => `<div class="tile${wide ? ' wide' : ''}"><div class="v">${v}</div><div class="l">${esc(l)}</div>${s ? `<div class="s">${s}</div>` : ''}</div>`;
+const tile = (v, l, s, wide, icon) => {
+  const ic = Icons.svg(icon || Icons.forLabel(l), 20);
+  return `<div class="tile${wide ? ' wide' : ''}${ic ? ' has-ico' : ''}">${ic ? `<span class="ico">${ic}</span>` : ''}<div class="tx"><div class="v">${v}</div><div class="l">${esc(l)}</div>${s ? `<div class="s">${s}</div>` : ''}</div></div>`;
+};
+const secH = (icon, text, extra = '') => `<h2 class="sec">${Icons.svg(icon, 15)}<span>${text}</span>${extra}</h2>`;
 const fmtDate = (v) => { if (v == null || v === '') return ''; if (typeof v === 'number' || /^\d{11,}$/.test(String(v))) return new Date(Number(v)).toISOString().slice(0, 10); return String(v); };
 
 // ── OVERVIEW ─────────────────────────────────────────────────────
@@ -55,7 +59,7 @@ function renderOverview(body) {
       ${tile(fmtN(pop), 'Residents (layer)', dev != null ? `<span class="${dev > 0 ? 'delta-pos' : 'delta-neg'}">${dev > 0 ? '+' : ''}${dev.toFixed(2)}% vs. ideal ${fmtN(d.ideal)}</span>` : '')}
       ${tile(S.cikr ? fmtN(infra.length) : '…', 'Infrastructure sites', S.cikr ? `${new Set(infra.map(catOf)).size} categories` : 'loading')}
     </div>
-    <h2 class="sec">Census profile</h2>
+    ${secH('chart', 'Census profile')}
     <div id="census-box">${censusHTML(f)}</div>`;
 }
 
@@ -108,7 +112,7 @@ function censusHTML(f) {
     </div>`;
     const rt = m.race.total || 0;
     if (rt) {
-      html += `<h2 class="sec">Race &amp; ethnicity <span style="text-transform:none;letter-spacing:0;font-weight:400">(2020 Census)</span></h2>
+      html += `${secH('globe', 'Race &amp; ethnicity', ' <span style="text-transform:none;letter-spacing:0;font-weight:400">(2020 Census)</span>')}
         <div class="stack" role="img" aria-label="Race composition">${RACE_DEF.map(([k, l, col]) => `<span style="width:${(m.race[k] / rt * 100).toFixed(2)}%;background:${col}" title="${esc(l)} ${(m.race[k] / rt * 100).toFixed(1)}%"></span>`).join('')}</div>
         <div class="key">${RACE_DEF.filter(([k]) => m.race[k] / rt >= 0.005).map(([k, l, col]) => `<span><i style="background:${col}"></i>${esc(l)} ${(m.race[k] / rt * 100).toFixed(1)}%</span>`).join('')}</div>
         <p class="muted" style="margin-top:6px">Hispanic or Latino (any race): <b>${fmtPct(m.pctHispanic)}</b></p>`;
@@ -116,7 +120,7 @@ function censusHTML(f) {
   }
   // county makeup
   const counties = Object.entries(s.counties).sort((a, b) => b[1] - a[1]);
-  html += `<h2 class="sec">County makeup</h2><div class="county-list">${counties.map(([k, pop]) => {
+  html += `${secH('pin', 'County makeup')}<div class="county-list">${counties.map(([k, pop]) => {
     const sp = r.split[k]; const others = sp ? sp.filter(x => x !== f._id).map(districtNum).join(', ') : '';
     return `<div><span>${esc(r.counties[k] || 'County ' + k)}${sp ? `<span class="split" title="Also in District ${esc(others)}">split</span>` : ''}</span><span class="muted">${fmtN(pop)} in district</span></div>`;
   }).join('')}</div>
@@ -135,9 +139,9 @@ function renderInfra(body, seq) {
   body.innerHTML = `
     <div class="tiles">${tile(fmtN(all.length), S.selected != null ? `Sites in ${districtLabel(featureById(S.selected))}` : 'Sites statewide')}${tile(cats.length, 'Categories')}</div>
     <h2 class="sec">By category ${S.catFilter ? '<button type="button" class="pill" id="clear-cat" style="margin-left:6px">Clear filter</button>' : ''}</h2>
-    <div>${cats.map(c => `<div class="bar-row${S.catFilter === c ? ' sel' : ''}"><button type="button" data-cat="${esc(c)}" aria-pressed="${S.catFilter === c}"><span><span class="cat-dot" style="background:${S.cikr.color[c]}"></span>${esc(c)}</span><div class="bar"><i style="width:${counts[c] / max * 100}%;background:${S.cikr.color[c]}"></i></div></button><span class="n">${counts[c]}</span></div>`).join('') || '<div class="empty">No infrastructure sites in this district.</div>'}</div>
+    <div>${cats.map(c => `<div class="bar-row${S.catFilter === c ? ' sel' : ''}"><button type="button" data-cat="${esc(c)}" aria-pressed="${S.catFilter === c}"><span>${catBadge(c, 18)}${esc(c)}</span><div class="bar"><i style="width:${counts[c] / max * 100}%;background:${S.cikr.color[c]}"></i></div></button><span class="n">${counts[c]}</span></div>`).join('') || '<div class="empty">No infrastructure sites in this district.</div>'}</div>
     <h2 class="sec">Facilities (${list.length})</h2>
-    ${list.slice(0, 150).map(p => `<div class="row-item"><button type="button" class="row-item clickable" style="border:0;padding:0;margin:0" data-oid="${p.oid}"><h3><span class="cat-dot" style="background:${S.cikr.color[catOf(p)]}"></span>${esc(facName(p))}</h3><div class="sub">${esc(catOf(p))}${S.cikr.f.notes && p.a[S.cikr.f.notes] ? ' — ' + esc(p.a[S.cikr.f.notes]) : ''}</div></button>${canEditCikr ? `<div class="btn-row"><button type="button" class="btn btn-sm" data-edit="${p.oid}">Edit</button></div>` : ''}</div>`).join('')}
+    ${list.slice(0, 150).map(p => `<div class="row-item"><button type="button" class="row-item clickable" style="border:0;padding:0;margin:0" data-oid="${p.oid}"><h3>${catBadge(catOf(p), 18)}${esc(facName(p))}</h3><div class="sub">${esc(catOf(p))}${S.cikr.f.notes && p.a[S.cikr.f.notes] ? ' — ' + esc(p.a[S.cikr.f.notes]) : ''}</div></button>${canEditCikr ? `<div class="btn-row"><button type="button" class="btn btn-sm" data-edit="${p.oid}">Edit</button></div>` : ''}</div>`).join('')}
     ${list.length > 150 ? `<p class="muted">Showing the first 150 of ${list.length}. Filter by category or select a district to narrow the list.</p>` : ''}`;
   body.onclick = (e) => {
     const c = e.target.closest('button[data-cat]'); if (c) { S.catFilter = S.catFilter === c.dataset.cat ? null : c.dataset.cat; renderCikrMarkers(); return renderDetail(); }
@@ -149,25 +153,32 @@ function renderInfra(body, seq) {
 
 // ── GRANTS ───────────────────────────────────────────────────────
 S.grants = { year: null, years: null, layers: {} };
-function detectDistrictField(meta, ch, override) {
-  if (override) return AG.realField(meta, override);
-  const names = AG.fieldNames(meta), re = { congress: /cong/i, senate: /sen/i, house: /house|hse/i }[ch];
+function detectDistrictField(meta, ch, override, kind) {
+  const names = AG.fieldNames(meta);
+  const pref = [override, CONFIG.joinFields && CONFIG.joinFields[kind] && CONFIG.joinFields[kind][ch]].filter(Boolean);
+  for (const n of pref) { const r = AG.realField(meta, n); if (r) return r; }
+  const re = { congress: /cong/i, senate: /sen/i, house: /house|hse/i }[ch];
   return names.find(n => re.test(n)) || names.find(n => /^district$/i.test(n)) || null;
 }
-function whereDistrict(meta, field, id) {
-  const fd = meta.fields.find(x => x.name === field), n = districtNum(id);
-  if (fd && /Integer|Double|Single|SmallInteger/.test(fd.type)) return `${field} = ${parseInt(id, 10)}`;
-  const vals = [...new Set([String(id), String(n), String(n).padStart(2, '0')])];
-  return `${field} IN (${vals.map(v => `'${v.replace(/'/g, "''")}'`).join(',')})`;
+// Every plausible way the layers might spell this district: District_Filter, LongName, "1", "01", "District 1"…
+function districtKeys(f, ch = S.chamber) {
+  const n = districtNum(f._id), p2 = String(n).padStart(2, '0');
+  const vals = [attr(f, 'filter', ch), attr(f, 'longName', ch), f._id, String(n), p2, `District ${n}`, `District ${p2}`];
+  return [...new Set(vals.filter(v => v != null && String(v).trim() !== '').map(v => String(v).trim()))];
+}
+function whereDistrict(meta, field, f) {
+  const fd = meta.fields.find(x => x.name === field);
+  if (fd && /Integer|Double|Single|SmallInteger/.test(fd.type)) return `${field} = ${districtNum(f._id)}`;
+  return `${field} IN (${districtKeys(f).map(v => `'${v.replace(/'/g, "''")}'`).join(',')})`;
 }
 async function layerInfo(key, itemId, override) {
   const L = S.grants.layers;
   if (!L[key]) L[key] = (async () => {
     const url = await AG.layerUrlFromItem(itemId), meta = await AG.meta(url);
-    return { url, meta, distField: detectDistrictField(meta, S.chamber, override) };
+    return { url, meta, distField: detectDistrictField(meta, S.chamber, override, 'grants') };
   })().catch(e => { delete L[key]; throw e; });
   const info = await L[key];
-  info.distField = detectDistrictField(info.meta, S.chamber, override); // chamber can change
+  info.distField = detectDistrictField(info.meta, S.chamber, override, 'grants'); // chamber can change
   return info;
 }
 async function grantYears() {
@@ -188,7 +199,7 @@ async function grantTotal(g, f) {
   const yfd = info.meta.fields.find(x => x.name === yf);
   const where = [yf ? (yfd && yfd.type === 'esriFieldTypeString' ? `${yf} = '${S.grants.year}'` : `${yf} = ${S.grants.year}`) : '1=1'];
   if (info.distField) {
-    where.push(whereDistrict(info.meta, info.distField, f._id));
+    where.push(whereDistrict(info.meta, info.distField, f));
     const d = await AG.request(info.url + '/query', { where: where.join(' AND '), returnGeometry: 'false', outStatistics: JSON.stringify([{ statisticType: 'sum', onStatisticField: af, outStatisticFieldName: 'S' }, { statisticType: 'count', onStatisticField: info.meta.objectIdField || 'OBJECTID', outStatisticFieldName: 'C' }]) });
     const a = (d.features[0] || {}).attributes || {}; return { sum: a.S, count: a.C || 0, mode: 'field' };
   }
@@ -240,16 +251,23 @@ async function loadDisasters() {
   })().catch(e => { S.disasters = null; throw e; });
   return S.disasters;
 }
-async function renderDisasters(body, seq) {
+async function renderDisastersLayer(body, seq) {
   if (S.selected == null) { body.innerHTML = '<div class="empty">Select a district to view its disaster declarations.</div>'; return; }
   body.innerHTML = '<div class="empty"><span class="spin"></span>Loading disaster declarations…</div>';
   const f = featureById(S.selected);
   try {
     const D = await loadDisasters(); if (stale(seq)) return;
     const fld = (n) => AG.realField(D.meta, n);
-    const distF = detectDistrictField(D.meta, S.chamber, CONFIG.disasters.districtField);
+    const distF = detectDistrictField(D.meta, S.chamber, CONFIG.disasters.districtField, 'disasters');
     let rows, method;
-    if (distF) { const want = new Set([String(f._id), String(districtNum(f._id)), String(districtNum(f._id)).padStart(2, '0')]); rows = D.rows.filter(r => want.has(String(r[distF]).trim())); method = 'district field'; }
+    let diag = '';
+    if (distF) {
+      const want = new Set(districtKeys(f).map(x => x.toLowerCase()));
+      // a cell may hold one district or a delimited list of them
+      rows = D.rows.filter(r => { const cell = String(r[distF] ?? '').trim().toLowerCase(); return want.has(cell) || cell.split(/[,;|]/).some(t => want.has(t.trim())); });
+      method = 'district field';
+      if (!rows.length) diag = `<div class="note">No records matched on field <b>${esc(distF)}</b> for any of: ${esc(districtKeys(f).join(' · '))}.<br>Values found in that field include: ${esc([...new Set(D.rows.map(r => String(r[distF] ?? '')))].slice(0, 8).join(' · ') || '(empty)')}.</div>`;
+    }
     else {
       const names = new Set(countyNamesFor(f._id).map(x => x.toLowerCase()));
       if (!names.size) { const c = S.census[S.chamber]; if (!c || c.status !== 'ready') { body.innerHTML = '<div class="empty"><span class="spin"></span>Waiting for county makeup…</div>'; setTimeout(() => { if (!stale(seq)) renderDetail(); }, 1500); return; } }
@@ -259,6 +277,7 @@ async function renderDisasters(body, seq) {
     const cn = fld('counties'), num = fld('disaster_number'), ty = fld('disaster_type'), dt = fld('disaster_date');
     body.innerHTML = `
       <div class="tiles">${tile(fmtN(rows.length), 'Declared disasters')}</div>
+      ${diag}
       ${method === 'counties' ? '<div class="note info">Matched by county (these records have no district field). Counties shared with another district appear in both.</div>' : ''}
       <h2 class="sec">Declarations</h2>
       ${rows.slice(0, 100).map(r => {
@@ -421,4 +440,66 @@ async function onMapPick(e) {
 async function reloadCikr() {
   const keep = S.editingFacility; S.cikr = null; // points are re-queried; layer metadata stays cached
   await loadCikr(); indexCikr(); renderCikrMarkers(); renderList(); S.editingFacility = S.cikr.pts.some(p => p.oid === keep) ? keep : null; renderDetail();
+}
+
+
+// ── DISASTERS from OpenFEMA ──────────────────────────────────────
+// One OpenFEMA row = one county in one declaration. Group by disaster number, then keep the
+// declarations that include at least one county in the selected district (matched by county FIPS).
+async function loadFema() {
+  if (S.fema) return S.fema;
+  S.fema = (async () => {
+    const c = CONFIG.disasters, rows = [], top = 1000;
+    for (let skip = 0; skip < 20000; skip += top) {
+      const q = `$filter=${encodeURIComponent(`state eq '${c.state}'`)}&$orderby=${encodeURIComponent('declarationDate desc')}&$top=${top}&$skip=${skip}&$format=json`;
+      const res = await fetch(`${c.femaUrl}?${q}`);
+      if (!res.ok) throw new Error(`OpenFEMA HTTP ${res.status}`);
+      const j = await res.json(), page = j.DisasterDeclarationsSummaries || [];
+      rows.push(...page); if (page.length < top) break;
+    }
+    const by = new Map();
+    rows.forEach(r => {
+      const n = r.disasterNumber; if (n == null) return;
+      let d = by.get(n);
+      if (!d) by.set(n, d = { number: n, id: r.femaDeclarationString, kind: r.declarationType, title: r.declarationTitle, type: r.incidentType, date: r.declarationDate, begin: r.incidentBeginDate, end: r.incidentEndDate, areas: new Map() });
+      const fips = String(r.fipsCountyCode || '').padStart(3, '0');
+      if (fips === '000') return;                       // statewide / tribal placeholders
+      d.areas.set(fips, { name: String(r.designatedArea || '').replace(/\s*\(County\)\s*$/i, ''), ia: !!(r.iaProgramDeclared), pa: !!r.paProgramDeclared, hm: !!r.hmProgramDeclared });
+    });
+    return [...by.values()].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  })().catch(e => { S.fema = null; throw e; });
+  return S.fema;
+}
+async function renderDisasters(body, seq) {
+  if (CONFIG.disasters.source !== 'fema') return renderDisastersLayer(body, seq);
+  if (S.selected == null) { body.innerHTML = '<div class="empty">Select a district to view its disaster declarations.</div>'; return; }
+  const f = featureById(S.selected), c = S.census[S.chamber];
+  if (!c || c.status === 'loading') { body.innerHTML = '<div class="empty"><span class="spin"></span>Working out which counties are in this district…</div>'; setTimeout(() => { if (!stale(seq)) renderDetail(); }, 1200); return; }
+  if (c.status === 'error') return renderDisastersLayer(body, seq);   // can't derive counties → fall back to the layer
+  const s0 = c.result.byDistrict[f._id], inD = new Set(s0 ? Object.keys(s0.counties) : []);
+  body.innerHTML = '<div class="empty"><span class="spin"></span>Loading FEMA declarations…</div>';
+  try {
+    const all = await loadFema(); if (stale(seq)) return;
+    const rows = all.filter(d => [...d.areas.keys()].some(k => inD.has(k)));
+    const dr = rows.filter(d => d.kind === 'DR').length, em = rows.filter(d => d.kind === 'EM').length;
+    const kindName = { DR: 'Major Disaster', EM: 'Emergency', FM: 'Fire Management' };
+    const yes = (b) => b ? 'Y' : '-';
+    body.innerHTML = `
+      <div class="tiles">${tile(fmtN(rows.length), 'Declared disasters', `${dr} major · ${em} emergency`)}${tile(fmtN(inD.size), 'Counties in district', 'matched by FIPS code')}</div>
+      <p class="muted" style="margin-top:8px">Source: OpenFEMA Disaster Declarations Summaries. Counties shared with another district appear in both.</p>
+      ${secH('storm', 'Declarations')}
+      ${rows.slice(0, 100).map(d => {
+        const areas = [...d.areas.entries()].filter(([k]) => inD.has(k)).sort((a, b) => a[1].name.localeCompare(b[1].name));
+        return `<div class="row-item"><h3>${esc(d.id || 'Disaster #' + d.number)} · ${esc(d.type || '')}</h3>
+          <div class="sub">${esc(d.title || '')}${d.kind ? ' — ' + esc(kindName[d.kind] || d.kind) : ''}</div>
+          <div class="sub">Declared ${esc(fmtDate(d.date).slice(0, 10))}${d.begin ? ' · incident began ' + esc(fmtDate(d.begin).slice(0, 10)) : ''}</div>
+          <table class="mini"><thead><tr><th>County</th><th>IA</th><th>PA</th><th>HM</th></tr></thead><tbody>${areas.map(([, a]) => `<tr><td>${esc(a.name)}</td><td>${yes(a.ia)}</td><td>${yes(a.pa)}</td><td>${yes(a.hm)}</td></tr>`).join('')}</tbody></table></div>`;
+      }).join('') || '<div class="empty">No disaster declarations for this district.</div>'}
+      ${rows.length > 100 ? `<p class="muted">Showing the 100 most recent of ${rows.length}.</p>` : ''}`;
+  } catch (e) {
+    if (stale(seq)) return;
+    console.warn('OpenFEMA failed, falling back to layer:', e);
+    toast('OpenFEMA unavailable (' + e.message + ') — using the internal layer.', true);
+    renderDisastersLayer(body, seq);
+  }
 }

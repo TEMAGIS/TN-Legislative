@@ -132,6 +132,7 @@ async function loadCikr() {
   S.cikr = { meta, f, pts, categories, color, oidField: oidF };
   return S.cikr;
 }
+const catBadge = (c, size = 16) => `<span class="badge">${Symbols.badge(c, S.cikr.color[c], size)}</span>`;
 const catOf = (p) => (S.cikr.f.category && p.a[S.cikr.f.category]) || 'Uncategorized';
 const facName = (p) => (S.cikr.f.name && p.a[S.cikr.f.name]) || '(unnamed facility)';
 
@@ -163,14 +164,16 @@ async function ensureCensus(ch) {
 function initMap() {
   const map = S.map = L.map('map', { zoomSnap: 0.25, minZoom: 5 }).setView(CONFIG.mapCenter, CONFIG.mapZoom);
   L.tileLayer(CONFIG.basemap, { maxZoom: 16, attribution: 'Esri, HERE, Garmin, USGS, NPS' }).addTo(map);
+  // District-number labels sit above the infrastructure symbols so they stay readable.
+  map.createPane('dlabels'); map.getPane('dlabels').style.zIndex = 650; map.getPane('dlabels').style.pointerEvents = 'none';
   map.createPane('refLabels'); map.getPane('refLabels').style.zIndex = 440; map.getPane('refLabels').style.pointerEvents = 'none';
   L.tileLayer(CONFIG.basemapLabels, { pane: 'refLabels', maxZoom: 16 }).addTo(map);
   S.layers.counties = L.layerGroup();
   S.layers.districts = L.layerGroup().addTo(map);
   S.layers.labels = L.layerGroup().addTo(map);
-  S.layers.cikr = L.markerClusterGroup({ disableClusteringAtZoom: 11, maxClusterRadius: 45, showCoverageOnHover: false }).addTo(map);
+  S.layers.cikr = L.layerGroup().addTo(map);
   S.layers.pending = L.layerGroup().addTo(map);
-  map.on('zoomend', updateLabelClass);
+  map.on('zoomend', () => { updateLabelClass(); if (S.cikr && Symbols.tier(map.getZoom()) !== S.symTier) renderCikrMarkers(); });
   map.on('click', (e) => { if (S.pickMode) onMapPick(e); });
   window.addEventListener('resize', () => map.invalidateSize());
 }
@@ -203,7 +206,7 @@ function renderDistrictLayer() {
     poly.on('mouseout', () => poly.setStyle(polyStyle(f)));
     poly.bindTooltip(`${esc(districtLabel(f))}${personName(f) ? ' — ' + esc(personName(f)) : ''}`, { sticky: true });
     S.layers.districts.addLayer(poly); S.polys[f._id] = poly;
-    S.layers.labels.addLayer(L.marker(ringLabelPoint(f), { interactive: false, keyboard: false,
+    S.layers.labels.addLayer(L.marker(ringLabelPoint(f), { interactive: false, keyboard: false, pane: 'dlabels',
       icon: L.divIcon({ className: '', html: `<span class="dlabel">${esc(districtNum(f._id))}</span>`, iconSize: [40, 16], iconAnchor: [20, 8] }) }));
   });
   updateLabelClass();
@@ -217,8 +220,9 @@ function renderCikrMarkers() {
   if (!S.cikr || !on) { renderLegend([]); return; }
   const pts = S.selected != null ? cikrIn(S.selected) : S.cikr.pts;
   const shown = S.catFilter ? pts.filter(p => catOf(p) === S.catFilter) : pts;
+  const z = S.map.getZoom(); S.symTier = Symbols.tier(z);
   shown.forEach(p => {
-    const m = L.circleMarker([p.y, p.x], { radius: 6, weight: 1.5, color: '#fff', fillColor: S.cikr.color[catOf(p)], fillOpacity: 0.95 });
+    const cat = catOf(p), m = L.marker([p.y, p.x], { icon: Symbols.leafletIcon(cat, S.cikr.color[cat], z), title: facName(p), keyboard: true });
     m.bindPopup(() => facilityPopup(p)); m._oid = p.oid; g.addLayer(m);
   });
   renderLegend(S.catFilter ? [S.catFilter] : [...new Set(pts.map(catOf))]);
@@ -232,7 +236,7 @@ function renderLegend(cats) {
   const lg = $('#legend');
   if (!cats.length || !S.cikr) { lg.hidden = true; return; }
   lg.hidden = false;
-  lg.innerHTML = cats.sort().map(c => `<div><i style="background:${S.cikr.color[c]}"></i>${esc(c)}</div>`).join('');
+  lg.innerHTML = cats.sort().map(c => `<div>${catBadge(c, 18)}${esc(c)}</div>`).join('');
 }
 function focusFacility(oid) {
   const p = S.cikr.pts.find(x => x.oid === oid); if (!p) return;
@@ -250,7 +254,7 @@ async function toggleCounties(on) {
         const p = L.polygon(AG.toLeafletRings(f), { color: '#55606f', weight: 1, fill: false, dashArray: '3 3', interactive: false });
         g.addLayer(p);
         const cn = String(f.attributes[c.name]).replace(/ County$/i, '');
-        g.addLayer(L.marker(ringLabelPoint(f), { interactive: false, keyboard: false, icon: L.divIcon({ className: '', html: `<span class="dlabel" style="font-weight:500;font-size:11px;color:#46505f">${esc(cn)}</span>`, iconSize: [60, 14], iconAnchor: [30, 7] }) }));
+        g.addLayer(L.marker(ringLabelPoint(f), { interactive: false, keyboard: false, pane: 'dlabels', icon: L.divIcon({ className: '', html: `<span class="dlabel" style="font-weight:500;font-size:11px;color:#46505f">${esc(cn)}</span>`, iconSize: [60, 14], iconAnchor: [30, 7] }) }));
       });
     } catch (e) { onFatal(e); $('#tog-counties').checked = false; return; }
   }
