@@ -295,6 +295,14 @@ function renderEdit(body) {
   else {
     const f = featureById(S.selected);
     html += `<p class="muted" style="margin-bottom:8px">${esc(districtLabel(f))} — changes save to the ${esc(d.cfg.short)} district layer.</p>`;
+    // portrait upload (stored as an attachment on the district feature)
+    const up = d.photos && d.photos.get(f._id), pc = photoCandidates(f);
+    html += `<div class="rep-card" style="margin-bottom:14px"><div class="rep-photo" style="width:84px;height:104px;font-size:22px">${pc.length ? `<img alt="" src="${esc(pc[0])}" data-srcs='${esc(JSON.stringify(pc.slice(1)))}' data-ini="${esc(initials(personName(f)))}">` : esc(initials(personName(f)))}</div>
+      <div style="flex:1">${d.meta.hasAttachments
+        ? `<div class="input-row"><label for="photo-file">Portrait (JPG or PNG)</label><input id="photo-file" type="file" accept="image/jpeg,image/png,image/webp"></div>
+           <div class="btn-row"><button type="button" class="btn btn-primary btn-sm" id="upload-photo">Upload portrait</button>${up ? '<button type="button" class="btn btn-sm" id="remove-photo">Remove uploaded</button>' : ''}</div>
+           <p class="muted" style="margin-top:6px">Resized automatically. ${up ? 'Shown instead of the default photo.' : 'Overrides the default photo once uploaded.'}</p>`
+        : '<div class="note" style="margin:0">Turn on <b>Attachments</b> for this layer in ArcGIS Online to enable portrait uploads.</div>'}</div></div>`;
     html += REP_FIELDS.filter(([k]) => d.fmap[k]).map(([k, l, t]) => inputHTML('ef-' + k, l, t, f.attributes[d.fmap[k]])).join('');
     html += '<div class="btn-row"><button type="button" class="btn btn-primary" id="save-rep">Save member record</button></div>';
     const missing = REP_FIELDS.filter(([k]) => !d.fmap[k]).map(([k]) => CONFIG.districtFields[k]);
@@ -349,6 +357,22 @@ function wireEdit(body) {
     Object.assign(f.attributes, attrs);
     toast('Member record saved.'); renderList(); S.polys[f._id] && S.polys[f._id].setTooltipContent(`${districtLabel(f)} — ${personName(f)}`); renderDetail();
   });
+  click('upload-photo', async () => {
+    const file = $('#photo-file', body).files[0];
+    if (!file) return toast('Choose an image first.', true);
+    if (file.size > 15 * 1024 * 1024) return toast('Image is over 15 MB.', true);
+    const f = featureById(S.selected), oid = f.attributes[d.meta.objectIdField || 'OBJECTID'], old = (d.photos.get(f._id) || {}).all || [];
+    const blob = await resizePortrait(file);
+    await AG.addAttachment(d.cfg.url, oid, blob, `portrait-${Date.now()}.jpg`);
+    if (old.length) await AG.deleteAttachments(d.cfg.url, oid, old).catch(e => console.warn('Old portrait not removed:', e.message));
+    await loadPhotos(S.chamber); toast('Portrait uploaded.'); renderList(); renderDetail();
+  });
+  click('remove-photo', async () => {
+    const f = featureById(S.selected), up = d.photos.get(f._id); if (!up) return;
+    if (!confirm('Remove the uploaded portrait for this district?')) return;
+    await AG.deleteAttachments(d.cfg.url, up.oid, up.all);
+    d.photos.delete(f._id); toast('Portrait removed.'); renderList(); renderDetail();
+  });
   click('add-fac', async () => { S.pickMode = S.pickMode === 'add' ? null : 'add'; $('#map').classList.toggle('picking', !!S.pickMode); renderDetail(); });
   click('cancel-pick', async () => { cancelPick(); renderDetail(); });
   click('save-new', async () => {
@@ -372,6 +396,14 @@ function wireEdit(body) {
     S.editingFacility = null; toast('Facility deleted.'); await reloadCikr();
   });
   click('done-fac', async () => { S.editingFacility = null; renderDetail(); });
+}
+// Downscale to at most 450×560 (keeps aspect) and re-encode as JPEG so uploads stay small.
+async function resizePortrait(file) {
+  const bmp = await createImageBitmap(file);
+  const k = Math.min(1, 450 / bmp.width, 560 / bmp.height), w = Math.round(bmp.width * k), h = Math.round(bmp.height * k);
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, w, h); g.drawImage(bmp, 0, 0, w, h);
+  return new Promise((res, rej) => cv.toBlob(b => b ? res(b) : rej(new Error('Could not process image')), 'image/jpeg', 0.88));
 }
 function cancelPick() { S.pickMode = null; S.pending = null; S.layers.pending.clearLayers(); $('#map').classList.remove('picking'); }
 async function onMapPick(e) {

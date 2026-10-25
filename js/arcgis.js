@@ -65,6 +65,32 @@ const AG = (() => {
     return d;
   }
 
+  // ── Attachments (used for member portraits) ──────────────────────
+  async function queryAttachments(layerUrl, oids) {
+    const out = new Map();
+    for (let i = 0; i < oids.length; i += 100) {
+      const d = await request(layerUrl + '/queryAttachments', { objectIds: oids.slice(i, i + 100).join(',') });
+      (d.attachmentGroups || []).forEach(g => out.set(g.parentObjectId, (g.attachmentInfos || []).filter(a => /^image\//i.test(a.contentType || ''))));
+    }
+    return out;
+  }
+  const attachmentUrl = (layerUrl, oid, id) => `${layerUrl}/${oid}/attachments/${id}?token=${encodeURIComponent(Auth.accessToken || '')}`;
+  async function addAttachment(layerUrl, oid, blob, filename) {
+    await Auth.ensureFresh().catch(() => {});
+    const fd = new FormData();
+    fd.append('f', 'json'); fd.append('token', Auth.accessToken); fd.append('attachment', blob, filename);
+    const res = await fetch(`${layerUrl}/${oid}/addAttachment`, { method: 'POST', body: fd });
+    const d = await res.json();
+    if (d.error) throw new Error(d.error.message || 'Upload failed');
+    const r = d.addAttachmentResult; if (r && !r.success) throw new Error((r.error && r.error.description) || 'Upload failed');
+    return r;
+  }
+  async function deleteAttachments(layerUrl, oid, ids) {
+    const d = await request(`${layerUrl}/${oid}/deleteAttachments`, { attachmentIds: ids.join(',') });
+    const bad = (d.deleteAttachmentResults || []).find(r => !r.success);
+    if (bad) throw new Error((bad.error && bad.error.description) || 'Delete failed');
+  }
+
   // Resolve a portal item id → FeatureServer layer URL (cached).
   const itemUrlCache = new Map();
   async function layerUrlFromItem(itemId, layerIndex = 0) {
@@ -117,5 +143,5 @@ const AG = (() => {
   function bboxCenter(f) { const b = f._bbox; return [(b[1] + b[3]) / 2, (b[0] + b[2]) / 2]; }
 
   return { request, meta, fieldNames, hasField, realField, canEdit, canCreate, canDelete,
-           queryAll, applyEdits, layerUrlFromItem, prepPolygon, featureContains, locate, toLeafletRings, bboxCenter };
+           queryAll, applyEdits, queryAttachments, attachmentUrl, addAttachment, deleteAttachments, layerUrlFromItem, prepPolygon, featureContains, locate, toLeafletRings, bboxCenter };
 })();

@@ -56,6 +56,9 @@ const initials = (s) => String(s || '?').split(/\s+/).filter(Boolean).slice(0, 2
 
 function photoCandidates(f, ch = S.chamber) {
   const cfg = CONFIG.chambers[ch], out = [], m = memberFor(f, ch);
+  // 1) portrait uploaded through the Edit console (stored as a layer attachment)
+  const up = CD(ch).photos && CD(ch).photos.get(f._id);
+  if (up) out.push(AG.attachmentUrl(CD(ch).cfg.url, up.oid, up.id));
   const own = attr(f, 'photo', ch); if (own) out.push(own);
   if (m) {
     out.push(`${cfg.photoDir}${m.slug}.jpg`);
@@ -95,9 +98,20 @@ async function loadChamber(ch) {
     d.total = d.fmap.population ? d.features.reduce((t, f) => t + (Number(f.attributes[d.fmap.population]) || 0), 0) : null;
     d.ideal = d.total ? d.total / d.features.length : null;
     d.loaded = true;
+    d.photos = new Map();
     return d;
   })().finally(() => { d.loading = null; });
   return d.loading;
+}
+// Portraits uploaded by admins live as image attachments on the district features.
+async function loadPhotos(ch) {
+  const d = S.data[ch]; if (!d || !d.loaded || !d.meta.hasAttachments) return;
+  const oidF = d.meta.objectIdField || 'OBJECTID', byOid = new Map(d.features.map(f => [f.attributes[oidF], f]));
+  try {
+    const groups = await AG.queryAttachments(d.cfg.url, [...byOid.keys()]);
+    d.photos = new Map();
+    groups.forEach((infos, oid) => { const f = byOid.get(oid); if (f && infos.length) d.photos.set(f._id, { oid, id: infos[infos.length - 1].id, all: infos.map(i => i.id) }); });
+  } catch (e) { console.warn('Photo attachments unavailable:', e.message); }
 }
 async function loadMembers() {
   try { const r = await fetch('data/members.json'); if (r.ok) { const j = await r.json(); S.members = { congress: j.congress || [], senate: j.senate || [], house: j.house || [] }; } }
@@ -285,6 +299,7 @@ async function switchChamber(ch, id) {
     if (S.chamber !== ch) return; // user switched again while loading
     indexCikr(); renderDistrictLayer(); renderList(); fitState();
     ensureCensus(ch);
+    loadPhotos(ch).then(() => { if (S.chamber === ch) { renderList(); renderDetail(); } });
     updateEditTab();
     selectDistrict(id != null && featureById(id) ? id : null, { fit: id != null });
   } catch (e) { onFatal(e); $('#district-list').innerHTML = `<li class="empty">Could not load ${esc(CONFIG.chambers[ch].label)}.<br>${esc(e.message)}</li>`; $('#detail-body').innerHTML = ''; }
