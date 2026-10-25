@@ -1,1 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#002868">
+<meta name="referrer" content="no-referrer-when-downgrade">
+<title>TN Legislative Districts</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
+</head>
+<body>
 
+<!-- ───────────── Sign-in ───────────── -->
+<div id="login-screen" hidden>
+  <div class="login-card">
+    <div class="login-mark" aria-hidden="true">TN</div>
+    <h1>TN Legislative Districts</h1>
+    <p>Congressional, Senate and House districts, their members, census profile and the infrastructure layer maintained by the Legislative Advising group.</p>
+    <button id="oauth-signin-btn" class="btn btn-primary btn-block" type="button">Sign in with ArcGIS Online</button>
+    <a id="oauth-fallback" href="#" target="_blank" rel="noopener" hidden class="login-fallback">Embedded and sign-in won't open? Open it in a new tab</a>
+    <div id="login-error" class="login-error" role="alert"></div>
+  </div>
+</div>
+
+<!-- ───────────── App ───────────── -->
+<div id="app" hidden>
+  <header class="top">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">TN</span>
+      <div class="brand-text"><strong>Legislative Districts</strong><span>Legislative Advising Group</span></div>
+    </div>
+    <nav class="chamber-tabs" role="tablist" aria-label="District type" id="chamber-tabs"></nav>
+    <div class="user">
+      <span id="user-name" class="user-name"></span>
+      <button class="btn btn-ghost" id="signout-btn" type="button">Sign out</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="panel list-panel" aria-label="Districts">
+      <div class="search"><input id="search" type="search" placeholder="Search district, member or county…" aria-label="Search districts"></div>
+      <div id="list-meta" class="list-meta"></div>
+      <ul id="district-list" class="district-list"></ul>
+    </aside>
+
+    <section class="map-wrap" aria-label="Map">
+      <div id="map"></div>
+      <div class="map-tools">
+        <label class="chip-toggle"><input type="checkbox" id="tog-cikr" checked><span>Infrastructure</span></label>
+        <label class="chip-toggle"><input type="checkbox" id="tog-counties"><span>County lines</span></label>
+        <button class="btn btn-ghost btn-sm" id="reset-view" type="button">Statewide</button>
+      </div>
+      <div id="map-banner" class="map-banner" hidden></div>
+      <div id="legend" class="legend" hidden></div>
+    </section>
+
+    <aside class="panel detail-panel" aria-label="District details">
+      <div class="tabs" role="tablist" id="detail-tabs">
+        <button role="tab" data-tab="overview" class="active">Overview</button>
+        <button role="tab" data-tab="infra">Infrastructure</button>
+        <button role="tab" data-tab="grants">Grants</button>
+        <button role="tab" data-tab="disasters">Disasters</button>
+        <button role="tab" data-tab="edit" id="tab-edit" hidden>Edit</button>
+      </div>
+      <div id="detail-body" class="detail-body" role="tabpanel"></div>
+    </aside>
+  </main>
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/arcgis.js"></script>
+<script src="js/census.js"></script>
+<script src="js/app.js"></script>
+<script src="js/panels.js"></script>
+</body>
+</html>

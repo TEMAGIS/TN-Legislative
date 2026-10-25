@@ -1,0 +1,16 @@
+{
+  "_note": "Seed data for the 119th Congress delegation (as of Oct 2026). Photos are matched by 'slug' to photos/congress/<slug>.jpg. The ArcGIS layer's NAME/Title/Committees fields stay authoritative when present; this file supplies photo and fallback values. Verify bioguide IDs at https://bioguide.congress.gov before use (Van Epps' ID intentionally left blank).",
+  "congress": [
+    { "slug": "harshbarger", "name": "Diana Harshbarger", "party": "R", "firstYear": 2021, "bioguide": "H001086", "hometown": "Kingsport" },
+    { "slug": "burchett",    "name": "Tim Burchett",      "party": "R", "firstYear": 2019, "bioguide": "B001309", "hometown": "Knoxville" },
+    { "slug": "fleischmann", "name": "Chuck Fleischmann", "party": "R", "firstYear": 2011, "bioguide": "F000459", "hometown": "Ooltewah" },
+    { "slug": "desjarlais",  "name": "Scott DesJarlais",  "party": "R", "firstYear": 2011, "bioguide": "D000616", "hometown": "Sherwood" },
+    { "slug": "ogles",       "name": "Andy Ogles",        "party": "R", "firstYear": 2023, "bioguide": "O000175", "hometown": "Culleoka" },
+    { "slug": "rose",        "name": "John Rose",         "party": "R", "firstYear": 2019, "bioguide": "R000612", "hometown": "Cookeville" },
+    { "slug": "vanepps",     "name": "Matt Van Epps",     "party": "R", "firstYear": 2025, "bioguide": null,      "hometown": "Nashville" },
+    { "slug": "kustoff",     "name": "David Kustoff",     "party": "R", "firstYear": 2017, "bioguide": "K000392", "hometown": "Germantown" },
+    { "slug": "cohen",       "name": "Steve Cohen",       "party": "D", "firstYear": 2007, "bioguide": "C001068", "hometown": "Memphis" }
+  ],
+  "senate": [],
+  "house": []
+}
