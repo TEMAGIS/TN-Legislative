@@ -310,7 +310,7 @@ function renderList() {
 
 // ── selection / chamber switching ────────────────────────────────
 function selectDistrict(id, { fit = true } = {}) {
-  S.selected = id == null ? null : String(id); S.catFilter = null; S.editingFacility = null;
+  S.selected = id == null ? null : String(id); S.catFilter = null; S.editingFacility = null; Drill.reset();
   restyle(); renderCikrMarkers(); renderList(); renderDetail();
   if (S.selected != null && fit && S.polys[S.selected]) S.map.fitBounds(S.polys[S.selected].getBounds(), { padding: [30, 30] });
   if (S.selected == null && fit) fitState();
@@ -344,7 +344,7 @@ function setLoginError(msg) { const e = $('#login-error'); e.textContent = msg |
 async function startApp() {
   $('#login-screen').hidden = true; $('#app').hidden = false;
   if (!S.map) {
-    initMap(); wirePhotoFallback(); wireUI();
+    initMap(); wirePhotoFallback(); wireUI(); Drill.init();
   }
   S.map.invalidateSize();
   $('#edit-badge').hidden = !EDIT_MODE;

@@ -35,6 +35,14 @@ geometry and population one district at a time. Member names, committees and pho
 user, so that account needs edit rights (including geometry updates) on the target layer and read access to the source.
 Change the pair in `js/config.js` (`chambers.congress.url` / `syncSource`).
 
+## Census drill-down
+
+On a district's Overview, the census profile has breadcrumb chips (**District › County › Tract › Block group**). Click a county, tract
+or block group in the list (or its polygon on the map) to see that level's profile and have it drawn on the map; click an earlier chip
+to go back. Counties and tracts come from the district roll-up; block groups are fetched on demand when you open a tract
+(boundaries from Census TIGERweb, values from ACS 5-year and the 2020 Census). Block groups don't publish disability or SNAP figures,
+so those tiles show "—" at that level. Units are assigned to the district by centroid, as elsewhere. Config: `blockGroups` in `js/config.js`.
+
 ## Appearance settings (symbols, colors, census icons)
 
 In edit mode open **Edit → Appearance**. Click a symbol to choose from the glyph gallery, pick a color, rename or hide census tiles,
@@ -99,6 +107,7 @@ js/app.js             state, map, district list, boot
 js/panels.js          Overview, Infrastructure, Grants, Disasters, Edit
 js/settings.js        shared appearance settings (load/save to ArcGIS Online item)
 js/appearance.js      Edit → Appearance UI
+js/drill.js           census drill-down (breadcrumbs, level views, map highlight)
 data/members.json     member seed data
 photos/               member portraits (see above)
 ```

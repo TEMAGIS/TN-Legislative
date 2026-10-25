@@ -161,7 +161,7 @@ const Census = (() => {
     try { onStatus && onStatus('Loading ACS / Census data…'); acs = await loadAcs(); } catch (e) { acsError = e; }
     return {
       byDistrict: aggregate(tracts, assignment, acs),
-      assignment, tracts, counties, acsYear: acs && acs.year, acsError,
+      assignment, tracts, counties, acs, acsYear: acs && acs.year, acsError,
       split: splitCounties(tracts, assignment),
     };
   }
@@ -182,5 +182,55 @@ const Census = (() => {
     };
   }
 
-  return { summarize, metrics, loadTracts, loadCounties };
+  // ── Drill-down helpers ───────────────────────────────────────────
+  // Tract polygons for one county (Living Atlas; public) — used to draw the selected level on the map.
+  const tractGeomCache = {};
+  function tractGeometry(county) {
+    if (!tractGeomCache[county]) tractGeomCache[county] = (async () => {
+      const feats = await AG.queryAll(CONFIG.tracts.url, { where: `FIPS LIKE '47${county}%'`, outFields: 'FIPS,POPULATION', outSR: '4326', returnGeometry: 'true', maxAllowableOffset: '0.0004' }, { token: false, pageSize: 500 });
+      return feats.filter(f => f.geometry).map(f => AG.prepPolygon({ attributes: f.attributes, geometry: f.geometry }));
+    })().catch(e => { delete tractGeomCache[county]; throw e; });
+    return tractGeomCache[county];
+  }
+  // Block groups: official TIGERweb polygons + ACS / 2020 Census values, fetched for one tract at a time.
+  let bgLayer = null;
+  function bgLayerUrl() {
+    if (!bgLayer) bgLayer = (async () => {
+      const c = CONFIG.blockGroups || {};
+      if (c.url) return c.url;
+      const svc = await AG.request(c.serviceUrl, {}, { token: false });
+      const l = (svc.layers || []).find(x => /block groups?/i.test(x.name));
+      if (!l) throw new Error('Block group layer not found in ' + c.serviceUrl);
+      return c.serviceUrl.replace(/\/$/, '') + '/' + l.id;
+    })().catch(e => { bgLayer = null; throw e; });
+    return bgLayer;
+  }
+  async function bgGet(path, vars, county, tract) {
+    const p = new URLSearchParams({ get: vars.join(','), for: 'block group:*', in: `state:47 county:${county} tract:${tract}`, key: CONFIG.censusApiKey });
+    const res = await fetch(`https://api.census.gov/data/${path}?${p}`);
+    if (!res.ok) throw new Error(`Census ${path}: HTTP ${res.status}`);
+    const rows = await res.json(), out = new Map();
+    rows.slice(1).forEach(r => { const o = {}; vars.forEach((v, i) => { const n = Number(r[i]); o[v] = (r[i] !== null && Number.isFinite(n) && n >= 0) ? n : null; }); out.set(r.slice(-4).join(''), o); });
+    return out;
+  }
+  const ECON_BG = ['B17001_001E', 'B17001_002E', 'B23025_003E', 'B23025_005E'];   // SNAP and disability are only published down to tract level
+  async function loadBlockGroups(geoid) {   // geoid = 11-digit tract id
+    const county = geoid.slice(2, 5), tract = geoid.slice(5), acs = await loadAcs(), y = acs.year;
+    const url = await bgLayerUrl();
+    const none = (e) => { console.warn('[Census BG]', e.message); return new Map(); };
+    const [geo, d, a, e, r] = await Promise.all([
+      AG.queryAll(url, { where: `STATE='47' AND COUNTY='${county}' AND TRACT='${tract}'`, outFields: 'GEOID,BLKGRP', outSR: '4326', returnGeometry: 'true', maxAllowableOffset: '0.00005' }, { token: false }),
+      bgGet(`${y}/acs/acs5`, DETAIL, county, tract).catch(none), bgGet(`${y}/acs/acs5`, AGE, county, tract).catch(none),
+      bgGet(`${y}/acs/acs5`, ECON_BG, county, tract).catch(none), bgGet('2020/dec/pl', RACE, county, tract).catch(none)]);
+    const like = { d, a, e, s: new Map(), r };
+    return geo.filter(g => g.geometry).map(g => {
+      const id = String(g.attributes.GEOID), unit = { geoid: id, county, pop: 0 };
+      return { geoid: id, label: 'Block group ' + (g.attributes.BLKGRP || id.slice(-1)), feat: AG.prepPolygon({ geometry: g.geometry }), summary: aggregateOne(unit, like) };
+    }).sort((x, y2) => x.geoid.localeCompare(y2.geoid));
+  }
+  // Summary for a set of tracts (or a single unit) — reuses the district roll-up.
+  function rollup(units, acs) { const a = new Map(units.map(u => [u.geoid, 'u'])); return aggregate(units, a, acs).u || null; }
+  const aggregateOne = (unit, acs) => rollup([unit], acs);
+
+  return { summarize, metrics, loadTracts, loadCounties, rollup, tractGeometry, loadBlockGroups };
 })();

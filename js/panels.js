@@ -97,9 +97,10 @@ function censusHTML(f) {
   if (c.status === 'error') return `<div class="note err">Census profile unavailable: ${esc(c.error.message)}</div>`;
   const r = c.result, s = r.byDistrict[f._id];
   if (!s) return '<div class="note">No census tracts were matched to this district.</div>';
-  const m = Census.metrics(s), st = Census.metrics(statewideSummary(r));
+  const v = Drill.view(f, r), sU = v.summary || s;
+  const m = Census.metrics(sU), st = Census.metrics(statewideSummary(r));
   const sw = (x, fmt) => `<span title="Statewide">TN: ${fmt(x)}</span>`;
-  let html = '';
+  let html = Drill.crumbsHTML(v);
   if (!r.acsYear) {
     html += `<div class="note">${r.acsError && r.acsError.noKey ? 'Add a Census API key in <code>js/config.js</code> to load income, poverty, age, housing and race. Showing tract-based population only.' : 'ACS data could not be loaded (' + esc(r.acsError ? r.acsError.message : 'unknown') + '). Showing tract-based population only.'}</div>`;
     html += `<div class="tiles">${tile(fmtN(s.pop), 'Residents (tract estimates)')}${tile(fmtN(s.tracts), 'Census tracts')}</div>`;
@@ -124,13 +125,8 @@ function censusHTML(f) {
         <p class="muted" style="margin-top:6px">Hispanic or Latino (any race): <b>${fmtPct(m.pctHispanic)}</b></p>`;
     }
   }
-  // county makeup
-  const counties = Object.entries(s.counties).sort((a, b) => b[1] - a[1]);
-  html += `${secH('pin', 'County makeup')}<div class="county-list">${counties.map(([k, pop]) => {
-    const sp = r.split[k]; const others = sp ? sp.filter(x => x !== f._id).map(districtNum).join(', ') : '';
-    return `<div><span>${esc(r.counties[k] || 'County ' + k)}${sp ? `<span class="split" title="Also in District ${esc(others)}">split</span>` : ''}</span><span class="muted">${fmtN(pop)} in district</span></div>`;
-  }).join('')}</div>
-  <p class="muted" style="margin-top:10px">Tracts are assigned to districts by centroid, so figures for districts that divide a county are close approximations. Source: ${r.acsYear ? 'ACS ' + esc(r.acsYear) + ' 5-year and 2020 Census' : 'Esri Living Atlas tract population'}.</p>`;
+  html += Drill.listHTML(v)
+  + `<p class="muted" style="margin-top:10px">Tracts are assigned to districts by centroid, so figures for districts that divide a county are close approximations. Source: ${r.acsYear ? 'ACS ' + esc(r.acsYear) + ' 5-year and 2020 Census' : 'Esri Living Atlas tract population'}.</p>`;
   return html;
 }
 

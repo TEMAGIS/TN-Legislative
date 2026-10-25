@@ -90,6 +90,9 @@ window.CONFIG = {
   // Esri Living Atlas "USA Census Tracts" — public, no token. 2022 POPULATION per tract.
   tracts: { url: 'https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USA_Census_Tracts/FeatureServer/0' },
 
+  // Block groups for the census drill-down (official Census Bureau TIGERweb). The layer is found by name; set `url` to pin it.
+  blockGroups: { serviceUrl: 'https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer', url: null },
+
   // ── Grants & disasters (resolved from item id → service URL at runtime) ─
   grants: [
     { key: 'EMPG', label: 'Emergency Mgmt Performance Grant', itemId: 'e3b7ce43ff2d4710bca25a9b3ae95f6b' },
