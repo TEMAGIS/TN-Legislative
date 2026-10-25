@@ -35,8 +35,8 @@ function renderOverview(body) {
   const name = personName(f), cands = photoCandidates(f);
   const photo = cands.length ? `<img alt="Portrait of ${esc(name)}" src="${esc(cands[0])}" data-srcs='${esc(JSON.stringify(cands.slice(1)))}' data-ini="${esc(initials(name))}">` : esc(initials(name));
   const title = attr(f, 'title'), first = attr(f, 'firstYear') || (m && m.firstYear), lead = attr(f, 'leadership'), com = attr(f, 'committees'), web = attr(f, 'website');
-  const pop = d.fmap.population ? Number(f.attributes[d.fmap.population]) : null;
-  const dev = (pop && d.ideal) ? ((pop - d.ideal) / d.ideal) * 100 : null;
+  const pop = popOf(f), ideal = popTotals().ideal;
+  const dev = (pop && ideal) ? ((pop - ideal) / ideal) * 100 : null;
   const infra = cikrIn(f._id);
   body.innerHTML = `
     <div class="rep-card">
@@ -56,7 +56,7 @@ function renderOverview(body) {
     ${com ? `<div class="committees"><b>Committees:</b> ${esc(com)}</div>` : ''}
     <h2 class="sec">At a glance</h2>
     <div class="tiles">
-      ${tile(fmtN(pop), 'Residents (layer)', dev != null ? `<span class="${dev > 0 ? 'delta-pos' : 'delta-neg'}">${dev > 0 ? '+' : ''}${dev.toFixed(2)}% vs. ideal ${fmtN(d.ideal)}</span>` : '')}
+      ${tile(fmtN(pop), popIsEstimate(f) ? 'Residents (census est.)' : 'Residents', dev != null ? `<span class="${dev > 0 ? 'delta-pos' : 'delta-neg'}">${dev > 0 ? '+' : ''}${dev.toFixed(2)}% vs. ideal ${fmtN(ideal)}</span>` : (pop ? '' : 'loading…'))}
       ${tile(S.cikr ? fmtN(infra.length) : '…', 'Infrastructure sites', S.cikr ? `${new Set(infra.map(catOf)).size} categories` : 'loading')}
     </div>
     ${secH('chart', 'Census profile')}
@@ -64,18 +64,17 @@ function renderOverview(body) {
 }
 
 function renderStatewide(body) {
-  const d = CD(), c = S.census[S.chamber];
+  const d = CD(), c = S.census[S.chamber], PT = popTotals();
   const rows = d.features.map(f => {
-    const pop = d.fmap.population ? Number(f.attributes[d.fmap.population]) : null;
-    const dev = (pop && d.ideal) ? ((pop - d.ideal) / d.ideal) * 100 : null;
+    const pop = popOf(f), dev = (pop && PT.ideal) ? ((pop - PT.ideal) / PT.ideal) * 100 : null;
     return `<tr><td><button type="button" data-go="${esc(f._id)}">${esc(districtNum(f._id))}</button> <span class="muted">${esc(personName(f))}</span></td><td>${fmtN(pop)}</td><td>${dev == null ? '—' : (dev > 0 ? '+' : '') + dev.toFixed(1) + '%'}</td><td>${S.cikr ? fmtN(cikrIn(f._id).length) : '…'}</td></tr>`;
   }).join('');
   body.innerHTML = `
     <h2 class="sec">${esc(d.cfg.label)}</h2>
     <div class="tiles">
       ${tile(d.features.length, 'Districts')}
-      ${tile(fmtN(d.total), 'Residents (sum of layer)')}
-      ${tile(fmtN(d.ideal), 'Ideal district size')}
+      ${tile(fmtN(PT.total), 'Residents (all districts)')}
+      ${tile(fmtN(PT.ideal), 'Ideal district size')}
       ${tile(S.cikr ? fmtN(S.cikr.pts.length) : '…', 'Infrastructure sites')}
     </div>
     ${c && c.status === 'ready' && Object.keys(c.result.split).length ? `<div class="note info">Counties divided between districts in this chamber: ${esc(Object.keys(c.result.split).map(k => c.result.counties[k] || k).join(', '))}.</div>` : ''}

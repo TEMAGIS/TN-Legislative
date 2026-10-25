@@ -159,6 +159,18 @@ function indexCikr() {
 }
 const cikrIn = (id, ch = S.chamber) => (S.cikrIdx[ch] && S.cikrIdx[ch].get(String(id))) || [];
 
+// Population for a district: the layer's POPULATION when it is filled in (> 0), otherwise the
+// census-derived estimate (tracts assigned by centroid). Returns null until one is available.
+function layerPop(f, ch = S.chamber) { const d = CD(ch), v = d.fmap.population ? Number(f.attributes[d.fmap.population]) : NaN; return v > 0 ? v : null; }
+function censusPop(f, ch = S.chamber) { const c = S.census[ch], r = c && c.status === 'ready' && c.result.byDistrict[f._id]; return r && r.pop > 0 ? r.pop : null; }
+const popOf = (f, ch = S.chamber) => layerPop(f, ch) ?? censusPop(f, ch);
+const popIsEstimate = (f, ch = S.chamber) => layerPop(f, ch) == null && censusPop(f, ch) != null;
+function popTotals(ch = S.chamber) {
+  const d = CD(ch), ps = d.features.map(f => popOf(f, ch));
+  if (!ps.length || ps.some(p => p == null)) return { total: null, ideal: null };
+  const total = ps.reduce((a, b) => a + b, 0); return { total, ideal: total / ps.length };
+}
+
 async function ensureCensus(ch) {
   const cur = S.census[ch];
   if (cur && (cur.status === 'loading' || cur.status === 'ready')) return;
@@ -284,14 +296,14 @@ function renderList() {
   const items = d.features.filter(f => !q ||
     String(districtNum(f._id)) === q || districtLabel(f).toLowerCase().includes(q) ||
     personName(f).toLowerCase().includes(q) || countyNamesFor(f._id).some(c => c.toLowerCase().includes(q)));
-  $('#list-meta').textContent = `${items.length} of ${d.features.length} districts` + (d.ideal ? ` · ideal size ${fmtN(d.ideal)}` : '');
+  $('#list-meta').textContent = `${items.length} of ${d.features.length} districts` + (popTotals().ideal ? ` · ideal size ${fmtN(popTotals().ideal)}` : '');
   ul.innerHTML = items.map(f => {
-    const pop = d.fmap.population ? Number(f.attributes[d.fmap.population]) : null, p = partyOf(f);
+    const pop = popOf(f), p = partyOf(f);
     return `<li><button type="button" data-id="${esc(f._id)}" aria-current="${S.selected === f._id}">
       ${avatarHTML(f, S.chamber, d.features.length > 20 ? 'sm' : '')}
       <span class="d-text"><span class="d-title">${esc(districtLabel(f))}</span><br>
       <span class="d-sub">${esc(personName(f) || '—')} ${partyChip(p)}</span>
-      ${pop ? `<div class="d-pop">${fmtN(pop)} residents</div>` : ''}</span></button></li>`;
+      ${pop ? `<div class="d-pop">${fmtN(pop)} residents${popIsEstimate(f) ? ' (est.)' : ''}</div>` : ''}</span></button></li>`;
   }).join('') || '<li class="empty">No districts match.</li>';
 }
 
