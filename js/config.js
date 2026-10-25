@@ -12,7 +12,7 @@ const ORG = 'https://services1.arcgis.com/kILp9lqGUeOhnDbI/arcgis/rest/services/
 
 window.CONFIG = {
   appTitle: 'TN Legislative Districts',
-  clientId: 'REPLACE_WITH_NEW_CLIENT_ID',
+  clientId: 'Zopcm7n38K754eJt',
   redirectUri: null,
   authorizeUrl: 'https://www.arcgis.com/sharing/rest/oauth2/authorize',
   tokenUrl: 'https://www.arcgis.com/sharing/rest/oauth2/token',
@@ -21,7 +21,7 @@ window.CONFIG = {
   refreshBufferMs: 5 * 60 * 1000,
   tokenKey: 'legapp_token_v1',
 
-  censusApiKey: '',                    // <-- paste your Census API key
+  censusApiKey: 'da15544938f3846147bc547b15f88413e7a4cf5d',                    // <-- paste your Census API key
   acsYears: ['2024', '2023', '2022'],  // tried newest → oldest
 
   // ── District layers (all three chambers) ─────────────────────────
