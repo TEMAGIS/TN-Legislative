@@ -135,7 +135,7 @@ function renderInfra(body, seq) {
   const counts = {}; all.forEach(p => { const k = catOf(p); counts[k] = (counts[k] || 0) + 1; });
   const cats = Object.keys(counts).sort((a, b) => counts[b] - counts[a]), max = Math.max(1, ...Object.values(counts));
   const list = (S.catFilter ? all.filter(p => catOf(p) === S.catFilter) : all).slice().sort((a, b) => facName(a).localeCompare(facName(b)));
-  const canEditCikr = AG.canEdit(S.cikr.meta);
+  const canEditCikr = EDIT_MODE && AG.canEdit(S.cikr.meta);
   body.innerHTML = `
     <div class="tiles">${tile(fmtN(all.length), S.selected != null ? `Sites in ${districtLabel(featureById(S.selected))}` : 'Sites statewide')}${tile(cats.length, 'Categories')}</div>
     <h2 class="sec">By category ${S.catFilter ? '<button type="button" class="pill" id="clear-cat" style="margin-left:6px">Clear filter</button>' : ''}</h2>
@@ -297,7 +297,8 @@ async function renderDisastersLayer(body, seq) {
 // ── EDIT CONSOLE ─────────────────────────────────────────────────
 function updateEditTab() {
   const d = CD(), dEdit = d && d.loaded && AG.canEdit(d.meta), cEdit = S.cikr && (AG.canEdit(S.cikr.meta) || AG.canCreate(S.cikr.meta));
-  $('#tab-edit').hidden = !(dEdit || cEdit);
+  // Editors reach this tab via ?edit=1. If they lack permission the tab explains why instead of vanishing.
+  $('#tab-edit').hidden = !EDIT_MODE;
   if ($('#tab-edit').hidden && S.tab === 'edit') setTab('overview');
 }
 const REP_FIELDS = [['name', 'Name (as displayed)', 'text'], ['party', 'Party (R / D / I)', 'text'], ['title', 'Title', 'text'], ['firstYear', 'First year in office', 'number'],
@@ -309,7 +310,7 @@ function renderEdit(body) {
   let html = '';
   // — representative record
   html += '<h2 class="sec">Member record</h2>';
-  if (!dEdit) html += `<div class="note">You don't have permission to edit the ${esc(d.cfg.short)} district layer.</div>`;
+  if (!dEdit) html += `<div class="note">You don't have permission to edit the ${esc(d.cfg.short)} district layer.<br><span style="font-size:11px">Layer: <code style="word-break:break-all">${esc(d.cfg.url)}</code><br>Capabilities reported: <b>${esc(d.meta.capabilities || 'none')}</b>${/query/i.test(d.meta.capabilities || '') && !/update|editing/i.test(d.meta.capabilities || '') ? '<br>This looks like a read-only layer or view. Point <code>chambers.congress.url</code> in js/config.js at the editable source layer.' : ''}</span></div>`;
   else if (S.selected == null) html += '<div class="empty" style="padding:12px">Select a district to edit its member record.</div>';
   else {
     const f = featureById(S.selected);
@@ -351,6 +352,11 @@ function renderEdit(body) {
     }
     if (S.pickMode === 'move') html += '<div class="note info">Click the new location on the map…</div>';
   }
+  // — boundary sync from a source layer
+  if (dEdit && d.cfg.syncSource) html += `<h2 class="sec">Boundaries</h2>
+    <p class="muted" style="margin-bottom:8px">Bring this layer's district shapes and populations up to date from the source layer. Member names, committees and photos are not touched.</p>
+    <div class="btn-row"><button type="button" class="btn btn-primary" id="sync-compare">Compare with source</button></div>
+    <div id="sync-out" style="margin-top:10px"></div>`;
   // — schema check
   const miss = [];
   ['name', 'category', 'notes'].forEach(k => { if (S.cikr && !S.cikr.f[k]) miss.push(CONFIG.cikr[k + 'Field']); });
@@ -392,6 +398,7 @@ function wireEdit(body) {
     await AG.deleteAttachments(d.cfg.url, up.oid, up.all);
     d.photos.delete(f._id); toast('Portrait removed.'); renderList(); renderDetail();
   });
+  click('sync-compare', async () => { await syncCompare(body); });
   click('add-fac', async () => { S.pickMode = S.pickMode === 'add' ? null : 'add'; $('#map').classList.toggle('picking', !!S.pickMode); renderDetail(); });
   click('cancel-pick', async () => { cancelPick(); renderDetail(); });
   click('save-new', async () => {
@@ -502,4 +509,65 @@ async function renderDisasters(body, seq) {
     toast('OpenFEMA unavailable (' + e.message + ') — using the internal layer.', true);
     renderDisastersLayer(body, seq);
   }
+}
+
+
+// ── SYNC BOUNDARIES (source layer → this chamber's layer) ────────
+// Matches districts on DISTRICT, compares geometry, and (after confirmation and an automatic JSON backup)
+// writes only geometry + population to the target. Runs as the signed-in editor, so layer permissions apply.
+function ringsSig(g, dp) { return JSON.stringify(((g && g.rings) || []).map(r => r.map(([x, y]) => [+x.toFixed(dp), +y.toFixed(dp)]))); }
+const vertCount = (g) => ((g && g.rings) || []).reduce((t, r) => t + r.length, 0);
+async function syncCompare(body) {
+  const d = CD(), out = $('#sync-out', body), esc_ = esc;
+  out.innerHTML = '<span class="spin"></span>Reading source and target layers…';
+  try {
+    const sr = d.meta.spatialReference || {}, wkid = sr.latestWkid || sr.wkid || 4326, dp = (wkid === 4326 || wkid === 4269) ? 6 : 1;
+    const srcMeta = await AG.meta(d.cfg.syncSource);
+    const sId = AG.realField(srcMeta, CONFIG.districtFields.id), sPop = AG.realField(srcMeta, CONFIG.districtFields.population);
+    if (!sId) throw new Error(`Source layer has no "${CONFIG.districtFields.id}" field`);
+    const [src, tgt] = await Promise.all([
+      AG.queryAll(d.cfg.syncSource, { outFields: '*', outSR: String(wkid) }, { pageSize: 50 }),
+      AG.queryAll(d.cfg.url, { outFields: '*', outSR: String(wkid) }, { pageSize: 50 }),
+    ]);
+    const oidF = d.meta.objectIdField || 'OBJECTID', tById = new Map(tgt.map(t => [normId(t.attributes[d.fmap.id]), t]));
+    const rows = [], onlySrc = [], seen = new Set();
+    src.forEach(sf => {
+      const id = normId(sf.attributes[sId]), t = tById.get(id); seen.add(id);
+      if (!t) return onlySrc.push(id);
+      const newPop = sPop ? Number(sf.attributes[sPop]) : null, oldPop = d.fmap.population ? Number(t.attributes[d.fmap.population]) : null;
+      rows.push({ id, oid: t.attributes[oidF], geomChanged: ringsSig(sf.geometry, dp) !== ringsSig(t.geometry, dp), popChanged: newPop != null && !isNaN(newPop) && newPop !== oldPop,
+        newPop, oldPop, vOld: vertCount(t.geometry), vNew: vertCount(sf.geometry), geometry: sf.geometry });
+    });
+    const onlyTgt = [...tById.keys()].filter(k => !seen.has(k));
+    rows.sort((a, b) => districtNum(a.id) - districtNum(b.id));
+    const todo = rows.filter(r => r.geomChanged || r.popChanged);
+    S.sync = { rows, todo, tgt, wkid, oidF };
+    out.innerHTML = `
+      <table class="state"><thead><tr><th>District</th><th>Shape</th><th>Population</th></tr></thead><tbody>${rows.map(r => `<tr><td>${esc_(districtNum(r.id))}</td><td>${r.geomChanged ? '<b>changed</b>' : 'same'} <span class="muted">${fmtN(r.vOld)}→${fmtN(r.vNew)} pts</span></td><td>${r.popChanged ? `${fmtN(r.oldPop)} → <b>${fmtN(r.newPop)}</b>` : fmtN(r.oldPop)}</td></tr>`).join('')}</tbody></table>
+      ${onlySrc.length ? `<div class="note">In source but not in this layer (skipped): District ${esc_(onlySrc.join(', '))}.</div>` : ''}
+      ${onlyTgt.length ? `<div class="note">In this layer but not in source (left as is): District ${esc_(onlyTgt.join(', '))}.</div>` : ''}
+      ${todo.length ? `<div class="btn-row"><button type="button" class="btn btn-danger" id="sync-apply">Apply ${todo.length} update${todo.length > 1 ? 's' : ''}…</button></div><p class="muted">A backup of the current shapes downloads automatically first.</p>` : '<div class="note info">Already up to date — nothing to change.</div>'}`;
+    const ap = $('#sync-apply', out); if (ap) ap.onclick = () => syncApply(body, ap);
+  } catch (e) { out.innerHTML = ''; onFatal(e); }
+}
+async function syncApply(body, btn) {
+  const d = CD(), { todo, tgt, wkid, oidF } = S.sync, out = $('#sync-out', body);
+  if (!confirm(`Update ${todo.length} district${todo.length > 1 ? 's' : ''} in the ${d.cfg.short} layer from the source layer?\n\nA backup file of the current shapes will download first.`)) return;
+  btn.disabled = true;
+  try {
+    // 1) backup of the current layer
+    const blob = new Blob([JSON.stringify({ layer: d.cfg.url, exported: new Date().toISOString(), spatialReference: { wkid }, features: tgt }, null, 1)], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${d.cfg.short.toLowerCase()}-districts-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    // 2) one district per request keeps payloads small and failures isolated
+    let done = 0;
+    for (const r of todo) {
+      out.querySelector('.muted:last-child') && (out.querySelector('.muted:last-child').textContent = `Updating District ${districtNum(r.id)} (${++done} of ${todo.length})…`);
+      const attrs = { [oidF]: r.oid }; if (r.popChanged && d.fmap.population) attrs[d.fmap.population] = r.newPop;
+      const upd = { attributes: attrs }; if (r.geomChanged) upd.geometry = { rings: r.geometry.rings, spatialReference: { wkid } };
+      await AG.applyEdits(d.cfg.url, { updates: [upd] });
+    }
+    toast(`Updated ${todo.length} district${todo.length > 1 ? 's' : ''}.`);
+    d.loaded = false; S.census[S.chamber] = null; await switchChamber(S.chamber, S.selected); setTab('edit');
+  } catch (e) { onFatal(e); btn.disabled = false; }
 }

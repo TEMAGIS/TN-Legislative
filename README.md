@@ -15,6 +15,16 @@ Hosted on GitHub Pages; signs in with ArcGIS Online OAuth 2.0 + PKCE, same patte
 | Grants / Disasters | EMPG, HSGP, HMEP totals by fiscal year and disaster declarations for the selected district (layers resolved from the item IDs in the old dashboard) |
 | Edit console | Appears only if your ArcGIS account can edit the layer. Edit member records; add, edit, move, delete CIKR facilities. All edits go through `applyEdits` as the signed-in user |
 
+## Viewer vs. editor URLs
+
+* `https://…/legislative-app/` — read-only viewer (no Edit tab, no Edit buttons).
+* `https://…/legislative-app/?edit=1` — shows the Edit tab and an **Edit mode** badge. Share this URL (e.g. in a separate
+  Experience Builder page) with the people who maintain the data. The setting is remembered for the browser session so it survives sign-in.
+* `?edit=0` turns it back off.
+
+`?edit=1` only reveals the editing screens. Who can actually save changes is decided by the ArcGIS layer's sharing and
+editing settings, so users without permission will see a "no permission" message rather than being able to edit.
+
 ## Deploy
 
 1. **Register the app in ArcGIS Online** (Content → New item → Application → *Other application*, or copy how PREDS Summary was registered).
@@ -27,6 +37,13 @@ Hosted on GitHub Pages; signs in with ArcGIS Online OAuth 2.0 + PKCE, same patte
 3. Push to GitHub, then Settings → Pages → deploy from the branch root.
 
 ## Photos
+
+**Admin upload (recommended):** in the Edit tab, select a district, choose an image and click *Upload portrait*. It is resized
+to ≤450×560 JPEG and stored as an attachment on that district's feature, so it needs **Attachments enabled** on the district
+layer in ArcGIS Online and an account that can edit it. An uploaded portrait takes priority everywhere; *Remove uploaded* reverts
+to the defaults below. Photo order: uploaded attachment → `PhotoURL` field → file in this repo → public Congress image → initials.
+
+**Repo files (defaults):**
 
 Congress photos live in `photos/congress/<slug>.jpg` (slugs: harshbarger, burchett, fleischmann, desjarlais,
 ogles, rose, vanepps, kustoff, cohen). Official portraits are public-domain works of the U.S. House.

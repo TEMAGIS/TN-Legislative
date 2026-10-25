@@ -30,7 +30,10 @@ window.CONFIG = {
   chambers: {
     congress: {
       label: 'Congressional Districts', short: 'Congress', seatTitle: 'Representative',
-      url: ORG + 'TN_Congressional_Districts_Update/FeatureServer/0',
+      // The EXISTING layer (holds the member names, committees, photos). Boundaries are brought up to date
+      // from syncSource with the Edit tab's "Sync boundaries" tool (needs ?edit=1 and edit rights on this layer).
+      url: ORG + 'TN_Congressional_Districts/FeatureServer/0',
+      syncSource: ORG + 'TN_Congressional_Districts_Update/FeatureServer/0',
       seats: 9, color: '#0b4f9c', photoDir: 'photos/congress/',
     },
     senate: {

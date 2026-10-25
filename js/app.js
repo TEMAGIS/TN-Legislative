@@ -12,6 +12,17 @@ const S = {
   catFilter: null, map: null, layers: {}, polys: {}, pickMode: null, editingFacility: null,
 };
 
+// Edit mode is opt-in via ?edit=1 (share that URL with editors; the plain URL is the read-only viewer).
+// It is remembered for the browser session because the OAuth redirect drops the query string.
+// This only shows/hides the editing UI — what a user can actually save is still decided by the layer's permissions.
+const EDIT_MODE = (() => {
+  const q = new URLSearchParams(location.search).get('edit');
+  try {
+    if (q === '1') sessionStorage.setItem('legapp_edit', '1'); else if (q === '0') sessionStorage.removeItem('legapp_edit');
+    return sessionStorage.getItem('legapp_edit') === '1';
+  } catch { return q === '1'; }
+})();
+
 // ── tiny utilities ───────────────────────────────────────────────
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -323,6 +334,7 @@ async function startApp() {
     initMap(); wirePhotoFallback(); wireUI();
   }
   S.map.invalidateSize();
+  $('#edit-badge').hidden = !EDIT_MODE;
   AG.request(CONFIG.portalUrl + '/community/self').then(u => { $('#user-name').textContent = u.fullName || u.username || ''; S.user = u; }).catch(() => {});
   await loadMembers();
   const m = location.hash.match(/^#(congress|senate|house)(?:\/(\w+))?/);
