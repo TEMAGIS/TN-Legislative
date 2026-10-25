@@ -355,7 +355,7 @@ function renderEdit(body) {
     html += REP_FIELDS.filter(([k]) => d.fmap[k]).map(([k, l, t]) => inputHTML('ef-' + k, l, t, f.attributes[d.fmap[k]])).join('');
     html += '<div class="btn-row"><button type="button" class="btn btn-primary" id="save-rep">Save member record</button></div>';
     const missing = REP_FIELDS.filter(([k]) => !d.fmap[k]).map(([k]) => CONFIG.districtFields[k]);
-    if (missing.length) html += `<div class="note">Fields not on this layer (add them in ArcGIS Online to edit them here): <b>${esc(missing.join(', '))}</b></div>`;
+    if (missing.length) html += `<div class="note">Fields not on this layer (add them in ArcGIS Online to edit them here): <b>${esc(missing.join(', '))}</b><br><span style="font-size:11px">Fields on this layer: ${esc(AG.fieldNames(d.meta).join(', '))}</span></div>`;
     html += `<p class="muted">Photo tip: put the image in <code>${esc(d.cfg.photoDir)}</code> in the GitHub repo and enter the path, e.g. <code>${esc(d.cfg.photoDir)}name.jpg</code>.</p>`;
   }
   // — infrastructure

@@ -60,7 +60,7 @@ function memberFor(f, ch = S.chamber) {
 const personName = (f, ch = S.chamber) => stripTitle(attr(f, 'name', ch)) || (memberFor(f, ch) || {}).name || '';
 function partyOf(f, ch = S.chamber) {
   const p = String(attr(f, 'party', ch) || (memberFor(f, ch) || {}).party || '').trim().toUpperCase();
-  return p ? (p[0] === 'R' ? 'R' : p[0] === 'D' ? 'D' : p[0] === 'I' ? 'I' : 'U') : null;
+  return p ? (p[0] === 'R' || p === 'GOP' ? 'R' : p[0] === 'D' ? 'D' : p[0] === 'I' ? 'I' : 'U') : null;
 }
 const partyChip = (p) => p ? `<span class="party ${p}" title="${{ R: 'Republican', D: 'Democratic', I: 'Independent', U: 'Other' }[p]}">${p}</span>` : '';
 const initials = (s) => String(s || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
@@ -69,7 +69,7 @@ function photoCandidates(f, ch = S.chamber) {
   const cfg = CONFIG.chambers[ch], out = [], m = memberFor(f, ch);
   // 1) portrait uploaded through the Edit console (stored as a layer attachment)
   const up = CD(ch).photos && CD(ch).photos.get(f._id);
-  if (up) out.push(AG.attachmentUrl(CD(ch).cfg.url, up.oid, up.id));
+  if (up) [...up.all].reverse().forEach(id => out.push(AG.attachmentUrl(CD(ch).cfg.url, up.oid, id)));   // newest first, older uploads as backups
   const own = attr(f, 'photo', ch); if (own) out.push(own);
   if (m) {
     out.push(`${cfg.photoDir}${m.slug}.jpg`);
@@ -87,6 +87,12 @@ function wirePhotoFallback() {
   document.addEventListener('error', (e) => {
     const img = e.target;
     if (!(img instanceof HTMLImageElement) || !img.dataset.ini) return;
+    // An expired/old token makes attachment images fail intermittently: refresh once and retry before falling back.
+    if (/\/attachments\/\d+\?token=/.test(img.src) && !img.dataset.retried) {
+      img.dataset.retried = '1';
+      Auth.ensureFresh().catch(() => {}).finally(() => { img.src = img.src.replace(/token=[^&]*/, 'token=' + encodeURIComponent(Auth.accessToken || '')); });
+      return;
+    }
     let rest = []; try { rest = JSON.parse(img.dataset.srcs || '[]'); } catch {}
     if (rest.length) { img.dataset.srcs = JSON.stringify(rest.slice(1)); img.src = rest[0]; }
     else { const p = img.parentElement; if (p) p.textContent = img.dataset.ini; }
@@ -101,7 +107,14 @@ async function loadChamber(ch) {
   d.loading = (async () => {
     d.meta = await AG.meta(d.cfg.url);
     d.fmap = {};
-    Object.entries(CONFIG.districtFields).forEach(([k, n]) => { d.fmap[k] = AG.realField(d.meta, n); });
+    // Per-chamber overrides (CONFIG.chambers.<ch>.fields) win, then the standard names, then a guess from the layer's own field names.
+    const guess = { party: /party|affil/i, name: /^(member|legislator|representative|senator|rep|sen)(_?name)?$|^(full)?name$/i, title: /^title$/i, website: /web|url/i };
+    Object.entries(CONFIG.districtFields).forEach(([k, n]) => {
+      const over = d.cfg.fields && d.cfg.fields[k];
+      d.fmap[k] = AG.realField(d.meta, over || n)
+        || (guess[k] && (d.meta.fields || []).filter(x => x.type === 'esriFieldTypeString' && !/^(shape|globalid)/i.test(x.name)).map(x => x.name).find(nm => guess[k].test(nm) || guess[k].test(nm.replace(/[\s_]/g, ''))));
+    });
+    if (!d.fmap.party) console.warn(`[${d.cfg.short}] no party field found. Fields:`, AG.fieldNames(d.meta).join(', '));
     if (!d.fmap.id) throw new Error(`${d.cfg.short} layer has no "${CONFIG.districtFields.id}" field`);
     const feats = await AG.queryAll(d.cfg.url, { outFields: '*', maxAllowableOffset: '0.0003', geometryPrecision: '5' }, { pageSize: 100 });
     feats.forEach(f => { AG.prepPolygon(f); f._id = normId(f.attributes[d.fmap.id]); });
