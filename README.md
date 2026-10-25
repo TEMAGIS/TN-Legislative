@@ -13,7 +13,8 @@ Hosted on GitHub Pages; signs in with ArcGIS Online OAuth 2.0 + PKCE, same patte
 | Census profile | Population, households, median household income, poverty, age 65+/under 18, disability, no-vehicle, renter share, unemployment, race (2020 Census), Hispanic share, county makeup with split-county flags. Each stat shows the statewide figure for comparison |
 | Infrastructure | CIKR sites assigned to districts **by geometry** (point-in-polygon), so counts stay correct after redistricting. Category breakdown, filterable list, map markers |
 | Grants / Disasters | EMPG, HSGP, HMEP totals by fiscal year and disaster declarations for the selected district (layers resolved from the item IDs in the old dashboard) |
-| Edit console | Appears only if your ArcGIS account can edit the layer. Edit member records; add, edit, move, delete CIKR facilities. All edits go through `applyEdits` as the signed-in user |
+| Appearance | Edit tab → Appearance: staff pick the map symbol and color for each infrastructure category, the district colors, and the icon, label and visibility of every census / summary tile. Saved to a shared ArcGIS Online item so all viewers see it |
+| Edit console | Shown with `?edit=1`. Edit member records and portraits; add, edit, move, delete CIKR facilities; add, edit, delete EMPG / HSGP / HMEP grant awards (form built from each layer's own fields); sync boundaries from the source layer. All edits go through `applyEdits` as the signed-in user |
 
 ## Viewer vs. editor URLs
 
@@ -24,6 +25,25 @@ Hosted on GitHub Pages; signs in with ArcGIS Online OAuth 2.0 + PKCE, same patte
 
 `?edit=1` only reveals the editing screens. Who can actually save changes is decided by the ArcGIS layer's sharing and
 editing settings, so users without permission will see a "no permission" message rather than being able to edit.
+
+## Updating boundaries (Sync boundaries)
+
+The Congress layer the app reads/edits is `TN_Congressional_Districts` (existing layer with member data). In edit mode
+(`?edit=1`) → Edit tab → **Boundaries → Compare with source** reads `TN_Congressional_Districts_Update`, matches districts on
+`DISTRICT`, and lists which shapes and populations differ. **Apply** downloads a JSON backup of the current shapes, then updates only
+geometry and population one district at a time. Member names, committees and photos are not touched. It runs as the signed-in
+user, so that account needs edit rights (including geometry updates) on the target layer and read access to the source.
+Change the pair in `js/config.js` (`chambers.congress.url` / `syncSource`).
+
+## Appearance settings (symbols, colors, census icons)
+
+In edit mode open **Edit → Appearance**. Click a symbol to choose from the glyph gallery, pick a color, rename or hide census tiles,
+and change section icons. Changes preview immediately; **Save for everyone** writes them to an ArcGIS Online item
+(type *Application*, tag `tn-legislative-app-settings`, shared with the organization). The first save creates the item under the
+saver's account; later saves update it (the saver must own it, be an org admin, or be in its shared-update group). Every user's app
+finds it by tag on load. To pin a specific item, set `settings.itemId` in `js/config.js`. **Export JSON / Import JSON** make a backup,
+and a file saved as `data/settings.json` in the repo is used as the default when no shared item exists. New categories added to the
+infrastructure layer appear in the list automatically.
 
 ## Deploy
 
@@ -77,6 +97,8 @@ js/arcgis.js          REST helpers, paging, applyEdits, point-in-polygon
 js/census.js          tract → district assignment, ACS / Census roll-up
 js/app.js             state, map, district list, boot
 js/panels.js          Overview, Infrastructure, Grants, Disasters, Edit
+js/settings.js        shared appearance settings (load/save to ArcGIS Online item)
+js/appearance.js      Edit → Appearance UI
 data/members.json     member seed data
 photos/               member portraits (see above)
 ```

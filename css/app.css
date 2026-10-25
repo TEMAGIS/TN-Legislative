@@ -208,3 +208,22 @@ h2.sec { display: flex; align-items: center; gap: 7px; }
 h2.sec .ico-svg { color: var(--navy-2); flex: none; }
 
 .edit-badge { background: var(--red); color: #fff; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; }
+
+/* ── Appearance (edit mode) ─────────────────────────────────── */
+details.appear > summary { cursor: pointer; font-weight: 600; font-size: 13px; padding: 8px 10px; background: var(--surface-2, #f3f5f8); border: 1px solid var(--border); border-radius: 8px; }
+.ap-h { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-3); margin: 16px 0 6px; }
+.ap-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--border); }
+.ap-name { flex: 1; font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ap-pv { width: 40px; height: 40px; flex: none; border: 1px solid var(--border); border-radius: 8px; background: #fff; display: grid; place-items: center; cursor: pointer; color: var(--navy-2, #0b3a6b); }
+.ap-pv:hover, .ap-pv:focus-visible { border-color: var(--navy-2, #0b3a6b); }
+.ap-color { width: 38px; height: 30px; padding: 0; border: 1px solid var(--border); border-radius: 6px; background: #fff; }
+.ap-label { flex: 1; min-width: 0; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; font: inherit; font-size: 13px; }
+.ap-show { font-size: 12px; display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.ap-picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 4px; padding: 8px; margin: 4px 0 6px; background: var(--surface-2, #f3f5f8); border: 1px solid var(--border); border-radius: 8px; }
+.ap-picker button { height: 42px; border: 1px solid transparent; border-radius: 8px; background: #fff; display: grid; place-items: center; cursor: pointer; color: var(--navy-2, #0b3a6b); }
+.ap-picker button:hover { border-color: var(--navy-2, #0b3a6b); }
+.ap-picker button.on { border-color: var(--navy-2, #0b3a6b); box-shadow: inset 0 0 0 1px var(--navy-2, #0b3a6b); }
+.ap-chambers { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.ap-ch { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.ap-ch input { width: 38px; height: 30px; padding: 0; border: 1px solid var(--border); border-radius: 6px; }
+.ap-actions { margin-top: 14px; }

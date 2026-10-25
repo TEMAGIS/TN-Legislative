@@ -139,8 +139,8 @@ async function loadCikr() {
   const counts = {};
   pts.forEach(p => { const k = (f.category && p.a[f.category]) || 'Uncategorized'; counts[k] = (counts[k] || 0) + 1; });
   const categories = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
-  const color = {}; categories.forEach((k, i) => { color[k] = CAT_COLORS[i % CAT_COLORS.length]; });
-  S.cikr = { meta, f, pts, categories, color, oidField: oidF };
+  const defColor = {}, color = {}; categories.forEach((k, i) => { defColor[k] = CAT_COLORS[i % CAT_COLORS.length]; color[k] = Settings.color(k) || defColor[k]; });
+  S.cikr = { meta, f, pts, categories, color, defColor, oidField: oidF };
   return S.cikr;
 }
 const catBadge = (c, size = 16) => `<span class="badge">${Symbols.badge(c, S.cikr.color[c], size)}</span>`;
@@ -204,9 +204,10 @@ function updateLabelClass() {
   const z = S.map.getZoom();
   S.map.getContainer().classList.toggle('lbl-off', S.chamber === 'house' && z < 8.5);
 }
+const chamberColor = (ch) => Settings.chamberColor(ch) || CONFIG.chambers[ch].color;
 function polyStyle(f) {
-  const cfg = CD().cfg, sel = S.selected === f._id, any = S.selected != null;
-  return { color: cfg.color, weight: sel ? 4 : 1.8, opacity: any && !sel ? 0.55 : 1, fillColor: cfg.color, fillOpacity: sel ? 0.16 : (any ? 0.02 : 0.06) };
+  const cfg = CD().cfg, sel = S.selected === f._id, any = S.selected != null, col = chamberColor(S.chamber);
+  return { color: col, weight: sel ? 4 : 1.8, opacity: any && !sel ? 0.55 : 1, fillColor: col, fillOpacity: sel ? 0.16 : (any ? 0.02 : 0.06) };
 }
 function ringLabelPoint(f) {
   let best = null, bestA = -1;
@@ -348,6 +349,7 @@ async function startApp() {
   S.map.invalidateSize();
   $('#edit-badge').hidden = !EDIT_MODE;
   AG.request(CONFIG.portalUrl + '/community/self').then(u => { $('#user-name').textContent = u.fullName || u.username || ''; S.user = u; }).catch(() => {});
+  await Settings.load();
   await loadMembers();
   const m = location.hash.match(/^#(congress|senate|house)(?:\/(\w+))?/);
   const ch = m ? m[1] : 'congress';

@@ -20,11 +20,18 @@ const stale = (seq) => seq !== renderSeq;
 function addInto(a, b) { Object.keys(b).forEach(k => { if (k === 'counties') return; if (typeof b[k] === 'number') a[k] = (a[k] || 0) + b[k]; else if (b[k] && typeof b[k] === 'object') addInto(a[k] || (a[k] = {}), b[k]); }); return a; }
 function statewideSummary(r) { const o = {}; Object.values(r.byDistrict).forEach(s => addInto(o, s)); return o; }
 const RACE_DEF = [['white', 'White', '#0072b2'], ['black', 'Black', '#d55e00'], ['asian', 'Asian', '#009e73'], ['aian', 'Am. Indian / Alaska Native', '#cc79a7'], ['nhpi', 'Pacific Islander', '#e69f00'], ['other', 'Other', '#56b4e9'], ['multi', 'Two or more', '#7a5195']];
-const tile = (v, l, s, wide, icon) => {
-  const ic = Icons.svg(icon || Icons.forLabel(l), 20);
-  return `<div class="tile${wide ? ' wide' : ''}${ic ? ' has-ico' : ''}">${ic ? `<span class="ico">${ic}</span>` : ''}<div class="tx"><div class="v">${v}</div><div class="l">${esc(l)}</div>${s ? `<div class="s">${s}</div>` : ''}</div></div>`;
+const tile = (v, l, s, wide, icon, key) => {
+  const slot = Settings.slotFor(l, key);
+  if (slot && Settings.hidden(slot.key)) return '';
+  const lab = slot ? Settings.label(slot.key, l) : l;
+  const ic = Icons.svg((slot && Settings.icon(slot.key)) || icon || Icons.forLabel(l), 20);
+  return `<div class="tile${wide ? ' wide' : ''}${ic ? ' has-ico' : ''}">${ic ? `<span class="ico">${ic}</span>` : ''}<div class="tx"><div class="v">${v}</div><div class="l">${esc(lab)}</div>${s ? `<div class="s">${s}</div>` : ''}</div></div>`;
 };
-const secH = (icon, text, extra = '') => `<h2 class="sec">${Icons.svg(icon, 15)}<span>${text}</span>${extra}</h2>`;
+const secH = (icon, text, extra = '') => {
+  const slot = Settings.slotFor(text);
+  const ic = Icons.svg((slot && Settings.icon(slot.key)) || icon, 15), lab = slot && Settings.label(slot.key, null);
+  return `<h2 class="sec">${ic}<span>${lab ? esc(lab) : text}</span>${extra}</h2>`;
+};
 const fmtDate = (v) => { if (v == null || v === '') return ''; if (typeof v === 'number' || /^\d{11,}$/.test(String(v))) return new Date(Number(v)).toISOString().slice(0, 10); return String(v); };
 
 // ── OVERVIEW ─────────────────────────────────────────────────────
@@ -137,17 +144,44 @@ function renderInfra(body, seq) {
   const canEditCikr = EDIT_MODE && AG.canEdit(S.cikr.meta);
   body.innerHTML = `
     <div class="tiles">${tile(fmtN(all.length), S.selected != null ? `Sites in ${districtLabel(featureById(S.selected))}` : 'Sites statewide')}${tile(cats.length, 'Categories')}</div>
+    ${addFacilityHTML()}
     <h2 class="sec">By category ${S.catFilter ? '<button type="button" class="pill" id="clear-cat" style="margin-left:6px">Clear filter</button>' : ''}</h2>
     <div>${cats.map(c => `<div class="bar-row${S.catFilter === c ? ' sel' : ''}"><button type="button" data-cat="${esc(c)}" aria-pressed="${S.catFilter === c}"><span>${catBadge(c, 18)}${esc(c)}</span><div class="bar"><i style="width:${counts[c] / max * 100}%;background:${S.cikr.color[c]}"></i></div></button><span class="n">${counts[c]}</span></div>`).join('') || '<div class="empty">No infrastructure sites in this district.</div>'}</div>
     <h2 class="sec">Facilities (${list.length})</h2>
     ${list.slice(0, 150).map(p => `<div class="row-item"><button type="button" class="row-item clickable" style="border:0;padding:0;margin:0" data-oid="${p.oid}"><h3>${catBadge(catOf(p), 18)}${esc(facName(p))}</h3><div class="sub">${esc(catOf(p))}${S.cikr.f.notes && p.a[S.cikr.f.notes] ? ' — ' + esc(p.a[S.cikr.f.notes]) : ''}</div></button>${canEditCikr ? `<div class="btn-row"><button type="button" class="btn btn-sm" data-edit="${p.oid}">Edit</button></div>` : ''}</div>`).join('')}
     ${list.length > 150 ? `<p class="muted">Showing the first 150 of ${list.length}. Filter by category or select a district to narrow the list.</p>` : ''}`;
+  wireAddFacility(body);
   body.onclick = (e) => {
     const c = e.target.closest('button[data-cat]'); if (c) { S.catFilter = S.catFilter === c.dataset.cat ? null : c.dataset.cat; renderCikrMarkers(); return renderDetail(); }
     if (e.target.closest('#clear-cat')) { S.catFilter = null; renderCikrMarkers(); return renderDetail(); }
     const ed = e.target.closest('button[data-edit]'); if (ed) { S.editingFacility = Number(ed.dataset.edit); S.pending = null; return setTab('edit'); }
     const o = e.target.closest('button[data-oid]'); if (o) focusFacility(Number(o.dataset.oid));
   };
+}
+
+// Add-facility control shown under the counts on the Infrastructure tab (edit mode only)
+function addFacilityHTML() {
+  if (!EDIT_MODE || !S.cikr || !AG.canCreate(S.cikr.meta)) return '';
+  const c = S.cikr;
+  if (S.pending) return `<div class="addfac"><div class="note info">New facility at ${S.pending.y.toFixed(5)}, ${S.pending.x.toFixed(5)}</div>
+    <datalist id="if-cats">${c.categories.map(x => `<option value="${esc(x)}">`).join('')}</datalist>
+    ${inputHTML('if-name', 'Facility name', 'text', '')}${inputHTML('if-cat', 'Category', 'text', '', 'list="if-cats"')}${inputHTML('if-notes', 'Notes', 'textarea', '')}
+    <div class="btn-row"><button type="button" class="btn btn-primary" id="if-save">Add facility</button><button type="button" class="btn" id="if-cancel">Cancel</button></div></div>`;
+  if (S.pickMode === 'add') return '<div class="addfac"><div class="note info">Click the map to place the new facility…</div><div class="btn-row"><button type="button" class="btn" id="if-cancel">Cancel</button></div></div>';
+  return '<div class="addfac btn-row" style="margin:4px 0 6px"><button type="button" class="btn btn-primary" id="if-add">+ Add facility</button></div>';
+}
+function wireAddFacility(body) {
+  const on = (id, fn) => { const b = $('#' + id, body); if (b) b.onclick = async () => { b.disabled = true; try { await fn(); } catch (e) { onFatal(e); } finally { b.disabled = false; } }; };
+  on('if-add', async () => { S.pickMode = 'add'; $('#map').classList.add('picking'); renderDetail(); });
+  on('if-cancel', async () => { cancelPick(); renderDetail(); });
+  on('if-save', async () => {
+    const c = S.cikr, v = (id) => $('#' + id, body).value.trim(), attrs = {};
+    if (c.f.name) { attrs[c.f.name] = v('if-name') || null; if (!attrs[c.f.name]) return toast('Enter a facility name.', true); }
+    if (c.f.category) attrs[c.f.category] = v('if-cat') || null;
+    if (c.f.notes) attrs[c.f.notes] = v('if-notes') || null;
+    await AG.applyEdits(CONFIG.cikr.url, { adds: [{ attributes: attrs, geometry: { x: S.pending.x, y: S.pending.y, spatialReference: { wkid: 4326 } } }] });
+    cancelPick(); toast('Facility added.'); await reloadCikr();
+  });
 }
 
 // ── GRANTS ───────────────────────────────────────────────────────
@@ -351,6 +385,9 @@ function renderEdit(body) {
     }
     if (S.pickMode === 'move') html += '<div class="note info">Click the new location on the map…</div>';
   }
+  // — grant awards (EMPG / HSGP / HMEP records for the selected district)
+  html += '<h2 class="sec">Grant awards</h2>' + (S.selected == null ? '<div class="empty" style="padding:12px">Select a district to edit its grant awards.</div>' : '<div id="grant-edit"><span class="spin"></span>Loading…</div>');
+  html += Appearance.html();
   // — boundary sync from a source layer
   if (dEdit && d.cfg.syncSource) html += `<h2 class="sec">Boundaries</h2>
     <p class="muted" style="margin-bottom:8px">Bring this layer's district shapes and populations up to date from the source layer. Member names, committees and photos are not touched.</p>
@@ -397,7 +434,9 @@ function wireEdit(body) {
     await AG.deleteAttachments(d.cfg.url, up.oid, up.all);
     d.photos.delete(f._id); toast('Portrait removed.'); renderList(); renderDetail();
   });
+  Appearance.wire(body);
   click('sync-compare', async () => { await syncCompare(body); });
+  if ($('#grant-edit', body)) loadGrantEditor(body);
   click('add-fac', async () => { S.pickMode = S.pickMode === 'add' ? null : 'add'; $('#map').classList.toggle('picking', !!S.pickMode); renderDetail(); });
   click('cancel-pick', async () => { cancelPick(); renderDetail(); });
   click('save-new', async () => {
@@ -569,4 +608,90 @@ async function syncApply(body, btn) {
     toast(`Updated ${todo.length} district${todo.length > 1 ? 's' : ''}.`);
     d.loaded = false; S.census[S.chamber] = null; await switchChamber(S.chamber, S.selected); setTab('edit');
   } catch (e) { onFatal(e); btn.disabled = false; }
+}
+
+
+// ── GRANT AWARDS EDITOR ──────────────────────────────────────────
+// Schema-driven: the form is built from each grant layer's own field list, so it works without
+// hard-coding field names. Records are tied to the district through the layer's district field.
+S.gEdit = { key: null, editing: null };
+const SYSTEM_FIELD = /^(created_user|created_date|last_edited_user|last_edited_date|Creator|CreationDate|Editor|EditDate|GlobalID|Shape.*)$/i;
+function gEditableFields(meta, skip) {
+  return (meta.fields || []).filter(f => !/OID|Geometry|GlobalID|Guid|Raster|Blob|XML/.test(f.type) && f.editable !== false && !SYSTEM_FIELD.test(f.name) && !skip.includes(f.name));
+}
+const toDateInput = (ms) => (ms == null || ms === '') ? '' : new Date(Number(ms)).toISOString().slice(0, 10);
+function gInput(f, val) {
+  const id = 'ge-' + f.name, label = f.alias || f.name, dom = f.domain && f.domain.type === 'codedValue' ? f.domain.codedValues : null;
+  if (dom) return `<div class="input-row"><label for="${esc(id)}">${esc(label)}</label><select id="${esc(id)}" data-f="${esc(f.name)}"><option value=""></option>${dom.map(c => `<option value="${esc(c.code)}"${String(c.code) === String(val) ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>`;
+  if (f.type === 'esriFieldTypeDate') return `<div class="input-row"><label for="${esc(id)}">${esc(label)}</label><input id="${esc(id)}" data-f="${esc(f.name)}" type="date" value="${esc(toDateInput(val))}"></div>`;
+  if (/Integer|Double|Single/.test(f.type)) return `<div class="input-row"><label for="${esc(id)}">${esc(label)}</label><input id="${esc(id)}" data-f="${esc(f.name)}" type="number" step="${/Double|Single/.test(f.type) ? 'any' : '1'}" value="${esc(val ?? '')}"></div>`;
+  return `<div class="input-row"><label for="${esc(id)}">${esc(label)}</label>${(f.length || 0) > 255 ? `<textarea id="${esc(id)}" data-f="${esc(f.name)}">${esc(val ?? '')}</textarea>` : `<input id="${esc(id)}" data-f="${esc(f.name)}" type="text" value="${esc(val ?? '')}">`}</div>`;
+}
+function gCoerce(f, raw) {
+  if (raw === '' || raw == null) return null;
+  if (f.type === 'esriFieldTypeDate') return Date.parse(raw + 'T00:00:00Z');
+  if (/Integer|Double|Single/.test(f.type)) { const n = Number(raw); return isNaN(n) ? null : n; }
+  return raw;
+}
+async function loadGrantEditor(body) {
+  const box = $('#grant-edit', body); if (!box) return;
+  const f = featureById(S.selected), seq = renderSeq;
+  try {
+    await grantYears();
+    const g = CONFIG.grants.find(x => x.key === S.gEdit.key) || CONFIG.grants[0]; S.gEdit.key = g.key;
+    const info = await layerInfo(g.key, g.itemId, CONFIG.grantDistrictField);
+    if (seq !== renderSeq || !$('#grant-edit')) return;
+    const yf = AG.realField(info.meta, CONFIG.grantFields.year), af = AG.realField(info.meta, CONFIG.grantFields.amount), oidF = info.meta.objectIdField || 'OBJECTID';
+    const head = `<div class="pills" role="group" aria-label="Grant program">${CONFIG.grants.map(x => `<button type="button" class="pill" data-prog="${x.key}" aria-pressed="${x.key === g.key}">${esc(x.key)}</button>`).join('')}</div>
+      <div class="input-row"><label for="ge-year">Fiscal year</label><select id="ge-year">${S.grants.years.map(y => `<option${y === S.grants.year ? ' selected' : ''}>${y}</option>`).join('')}</select></div>`;
+    if (!info.distField) { box.innerHTML = head + `<div class="note">The ${esc(g.key)} layer has no field that ties records to ${esc(CD().cfg.short)} districts, so awards can't be edited here. Add a district field (or set <code>grantDistrictField</code> in config.js).</div>`; return wireGrantEditor(box, body); }
+    const caps = info.meta.capabilities || '';
+    const canEd = /update|editing/i.test(caps), canAdd = /create|editing/i.test(caps), canDel = /delete|editing/i.test(caps);
+    const yfd = info.meta.fields.find(x => x.name === yf);
+    const where = [yf ? (yfd && yfd.type === 'esriFieldTypeString' ? `${yf} = '${S.grants.year}'` : `${yf} = ${S.grants.year}`) : '1=1', whereDistrict(info.meta, info.distField, f)].join(' AND ');
+    const rows = (await AG.queryAll(info.url, { where, outFields: '*', returnGeometry: 'false' }, { pageSize: 500 })).map(r => r.attributes);
+    const fields = gEditableFields(info.meta, [info.distField]);
+    const summaryFields = fields.filter(x => x.type === 'esriFieldTypeString' && x.name !== yf).slice(0, 2);
+    let html = head;
+    if (!canEd && !canAdd && !canDel) html += `<div class="note">You don't have permission to edit the ${esc(g.key)} layer. Capabilities reported: <b>${esc(caps || 'none')}</b></div>`;
+    html += rows.length ? rows.map(r => `<div class="row-item"><h3>${af ? fmtMoney2(r[af]) : 'Award'}</h3><div class="sub">${esc(summaryFields.map(x => r[x.name]).filter(Boolean).join(' · ') || 'Record ' + r[oidF])}</div>${canEd ? `<div class="btn-row"><button type="button" class="btn btn-sm" data-gedit="${r[oidF]}">Edit</button></div>` : ''}</div>`).join('') : `<p class="muted">No ${esc(g.key)} awards for ${esc(districtLabel(f))} in ${S.grants.year}.</p>`;
+    const editing = S.gEdit.editing, rec = editing === 'new' ? {} : rows.find(r => r[oidF] === editing);
+    if (editing != null && (editing === 'new' || rec)) {
+      html += `<div class="note info" style="margin-top:12px">${editing === 'new' ? `New ${esc(g.key)} award — ${esc(districtLabel(f))}, ${S.grants.year}` : 'Editing award'}</div>
+        ${fields.map(x => gInput(x, editing === 'new' ? (x.name === yf ? S.grants.year : null) : rec[x.name])).join('')}
+        <div class="btn-row"><button type="button" class="btn btn-primary" id="g-save">Save</button>${editing !== 'new' && canDel ? '<button type="button" class="btn btn-danger" id="g-del">Delete</button>' : ''}<button type="button" class="btn" id="g-cancel">Cancel</button></div>`;
+    } else if (canAdd) html += '<div class="btn-row" style="margin-top:6px"><button type="button" class="btn btn-primary" id="g-add">Add award</button></div>';
+    box.innerHTML = html;
+    S.gCtx = { info, g, f, fields, oidF, yf };
+    wireGrantEditor(box, body);
+  } catch (e) { box.innerHTML = `<div class="note err">${esc(e.message)}</div>`; if (e.tokenExpired) onFatal(e); }
+}
+function wireGrantEditor(box, body) {
+  const redo = () => loadGrantEditor(body);
+  box.onclick = async (e) => {
+    const t = e.target.closest('button'); if (!t) return;
+    if (t.dataset.prog) { S.gEdit = { key: t.dataset.prog, editing: null }; return redo(); }
+    if (t.dataset.gedit) { S.gEdit.editing = Number(t.dataset.gedit); return redo(); }
+    if (t.id === 'g-add') { S.gEdit.editing = 'new'; return redo(); }
+    if (t.id === 'g-cancel') { S.gEdit.editing = null; return redo(); }
+    const C = S.gCtx; if (!C) return;
+    try {
+      if (t.id === 'g-save') {
+        t.disabled = true;
+        const attrs = {}; C.fields.forEach(fd => { const el = box.querySelector(`[data-f="${CSS.escape(fd.name)}"]`); if (el) attrs[fd.name] = gCoerce(fd, el.value); });
+        if (S.gEdit.editing === 'new') {
+          const dfd = C.info.meta.fields.find(x => x.name === C.info.distField);
+          attrs[C.info.distField] = (dfd && /Integer|Double|Single/.test(dfd.type)) ? districtNum(C.f._id) : (attr(C.f, 'longName') || `District ${districtNum(C.f._id)}`);
+          if (C.yf && attrs[C.yf] == null) attrs[C.yf] = S.grants.year;
+          await AG.applyEdits(C.info.url, { adds: [{ attributes: attrs }] });
+        } else { attrs[C.oidF] = S.gEdit.editing; await AG.applyEdits(C.info.url, { updates: [{ attributes: attrs }] }); }
+        toast('Award saved.'); S.gEdit.editing = null; redo();
+      } else if (t.id === 'g-del') {
+        if (!confirm('Delete this award record? This cannot be undone.')) return;
+        await AG.applyEdits(C.info.url, { deletes: [S.gEdit.editing] });
+        toast('Award deleted.'); S.gEdit.editing = null; redo();
+      }
+    } catch (err) { t.disabled = false; onFatal(err); }
+  };
+  const ys = $('#ge-year', box); if (ys) ys.onchange = () => { S.grants.year = Number(ys.value); S.gEdit.editing = null; redo(); };
 }

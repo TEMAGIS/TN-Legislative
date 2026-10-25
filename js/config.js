@@ -108,6 +108,9 @@ window.CONFIG = {
     state: 'TN',
     itemId: 'fcf5f76dc92a403db38bcf6591dea232', districtField: null,   // used when source is 'layer' (or FEMA is unreachable)
   },
+  // Staff-editable appearance (Edit → Appearance) is stored on a shared ArcGIS Online item tagged
+  // 'tn-legislative-app-settings'. It is found automatically; set itemId to pin it to one specific item.
+  settings: { itemId: null },
   fiscalYears: [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026],
 
   // Statewide ideal-district populations come from the layer's own totals.
