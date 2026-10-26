@@ -354,9 +354,6 @@ function renderEdit(body) {
         : '<div class="note" style="margin:0">Turn on <b>Attachments</b> for this layer in ArcGIS Online to enable portrait uploads.</div>'}</div></div>`;
     html += REP_FIELDS.filter(([k]) => d.fmap[k]).map(([k, l, t]) => inputHTML('ef-' + k, l, t, f.attributes[d.fmap[k]])).join('');
     html += '<div class="btn-row"><button type="button" class="btn btn-primary" id="save-rep">Save member record</button></div>';
-    const missing = REP_FIELDS.filter(([k]) => !d.fmap[k]).map(([k]) => CONFIG.districtFields[k]);
-    if (missing.length) html += `<div class="note">Fields not on this layer (add them in ArcGIS Online to edit them here): <b>${esc(missing.join(', '))}</b><br><span style="font-size:11px">Fields on this layer: ${esc(AG.fieldNames(d.meta).join(', '))}</span></div>`;
-    html += `<p class="muted">Photo tip: put the image in <code>${esc(d.cfg.photoDir)}</code> in the GitHub repo and enter the path, e.g. <code>${esc(d.cfg.photoDir)}name.jpg</code>.</p>`;
   }
   // — infrastructure
   html += '<h2 class="sec">Infrastructure layer</h2>';
@@ -389,10 +386,6 @@ function renderEdit(body) {
     <p class="muted" style="margin-bottom:8px">Bring this layer's district shapes and populations up to date from the source layer. Member names, committees and photos are not touched.</p>
     <div class="btn-row"><button type="button" class="btn btn-primary" id="sync-compare">Compare with source</button></div>
     <div id="sync-out" style="margin-top:10px"></div>`;
-  // — schema check
-  const miss = [];
-  ['name', 'category', 'notes'].forEach(k => { if (S.cikr && !S.cikr.f[k]) miss.push(CONFIG.cikr[k + 'Field']); });
-  if (miss.length) html += `<div class="note">Infrastructure layer is missing fields: <b>${esc(miss.join(', '))}</b></div>`;
   body.innerHTML = html;
   wireEdit(body);
 }
