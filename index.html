@@ -17,7 +17,12 @@
 <!-- ───────────── Sign-in ───────────── -->
 <div id="login-screen" hidden>
   <div class="login-card">
-    <div class="login-mark" aria-hidden="true">TN</div>
+    <svg class="tn-badge login-badge" viewBox="0 0 100 100" role="img" aria-label="Tennessee state logo">
+      <rect x="0" y="0" width="100" height="84" fill="#D22730"/>
+      <rect x="0" y="84" width="100" height="5" fill="#ffffff"/>
+      <rect x="0" y="89" width="100" height="11" fill="#002868"/>
+      <text x="50" y="70" text-anchor="middle" textLength="86" lengthAdjust="spacingAndGlyphs" font-family="Georgia, 'Times New Roman', serif" font-weight="700" font-size="74" fill="#ffffff">TN</text>
+    </svg>
     <h1>TN Legislative Districts</h1>
     <p>Congressional, Senate and House districts, their members, census profile and the infrastructure layer maintained by the Legislative Advising group.</p>
     <button id="oauth-signin-btn" class="btn btn-primary btn-block" type="button">Sign in with ArcGIS Online</button>
@@ -30,7 +35,12 @@
 <div id="app" hidden>
   <header class="top">
     <div class="brand">
-      <span class="brand-mark" aria-hidden="true">TN</span>
+      <svg class="tn-badge brand-badge" viewBox="0 0 100 100" role="img" aria-label="Tennessee state logo">
+      <rect x="0" y="0" width="100" height="84" fill="#D22730"/>
+      <rect x="0" y="84" width="100" height="5" fill="#ffffff"/>
+      <rect x="0" y="89" width="100" height="11" fill="#002868"/>
+      <text x="50" y="70" text-anchor="middle" textLength="86" lengthAdjust="spacingAndGlyphs" font-family="Georgia, 'Times New Roman', serif" font-weight="700" font-size="74" fill="#ffffff">TN</text>
+    </svg>
       <div class="brand-text"><strong>Legislative Districts</strong><span>Legislative Advising Group</span></div>
     </div>
     <nav class="chamber-tabs" role="tablist" aria-label="District type" id="chamber-tabs"></nav>
